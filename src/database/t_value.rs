@@ -20,6 +20,12 @@ pub enum TValue {
     String(usize, String),
 }
 
+impl Default for TValue {
+    fn default() -> Self {
+        TValue::Bool(false)
+    }
+}
+
 impl fmt::Display for TValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.extract_string())

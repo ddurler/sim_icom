@@ -1,7 +1,9 @@
 //! Donnée atomique de la database
 
-use super::IdTag;
+use super::TValue;
 
+/// Donnée atomique détenue dans la database
+#[derive(Clone, Debug, Default)]
 pub struct Tag {
-    id_tag: IdTag,
+    pub t_value: TValue,
 }
