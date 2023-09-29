@@ -2,21 +2,17 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 mod database;
-use database::{Database, IdTag, Tag};
+use database::Database;
 
 fn main() {
     // Initialisation de la database
-    let mut db = Database::from_file("./datas/database_test.csv");
-    // let mut db = Database::from_file("./datas/database.csv");
+    // let db = Database::from_file("./datas/database_test.csv");
+    let db: Database = Database::from_file("./datas/database.csv");
 
-    // Populate database
-    let id_tag = IdTag::default();
-    let tag = Tag {
-        address: 0,
-        id_tag: id_tag.clone(),
-        is_internal: false,
-    };
-    db.add_tag(0, &id_tag, &tag);
+    // Choisi l'id_tag d'un tag à une adresse MODBUS
+    let id_tag = db.get_tag_from_address(0x0).unwrap().id_tag.clone();
+
+    println!("Valeur initiale : {}", db.get_u8_from_address(0));
 
     // Créer la database partagée mutable
     let shared_db = Arc::new(Mutex::new(db));
@@ -50,5 +46,6 @@ fn main() {
 
     // Accéder à la valeur finale de la zone de données partagée
     let db = shared_db.lock().unwrap();
+    println!("db = {db}");
     println!("Valeur finale : {}", db.get_u8_from_address(0));
 }

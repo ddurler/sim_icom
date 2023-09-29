@@ -1,13 +1,14 @@
 //! Décodage du contenu d'un fichier database*.csv
 
 use super::IdTag;
-use super::Tag;
+use super::TFormat;
+use crate::database::Tag;
 
 /// Parse une ligne du fichier database*.csv et retourne
-/// `Ok(Some(u16, IdTag, Tag))` si la ligne contient la définition d'un tag
+/// `Ok(Some(u16, IdTag, Tag, String))` si la ligne contient la définition d'un tag
 /// `Ok(None)` si la ligne ne contient pas la définition d'un tag (commentaire)
 /// `Err(String)` pour signaler une erreur de contenu dans cette ligne
-pub fn from_line_csv(line: &str) -> Result<Option<(u16, IdTag, Tag)>, String> {
+pub fn from_line_csv(line: &str) -> Result<Option<Tag>, String> {
     if line.is_empty() || line.starts_with("//") || line.starts_with("@@") {
         return Ok(None);
     }
@@ -24,12 +25,33 @@ pub fn from_line_csv(line: &str) -> Result<Option<(u16, IdTag, Tag)>, String> {
     let (is_internal, tag_u16, indice_0, indice_1, indice_2) = parse_field0(fields[0].trim())?;
     tag.is_internal = is_internal;
 
-    // Champ #1 : address (hexa)
+    // Champ #1 : address MODBUS (hexa)
     let address = parse_str_hexa_to_u16(fields[1].trim())?;
     tag.address = address;
 
     // Champ #2 : Format de la donnée hexa
-    let _t_format = parse_str_hexa_to_u8(fields[2].trim())?;
+    let format_u8 = parse_str_hexa_to_u8(fields[2].trim())?;
+    tag.t_format = TFormat::from(format_u8);
+    if tag.t_format == TFormat::Unknown {
+        return Err(format!("Format inconnu de donnée : {format_u8:02X}"));
+    }
+
+    // Champ #3 : Unité (si définie)
+    tag.unity = fields[3].trim().to_string();
+
+    // Champ #4 : Libellé (si défini)
+    tag.label = fields[4].trim().to_string();
+
+    // Champs #5 (CanOpen index), #6 (CanOpen), #7 (MQTT topic), #8 (QoS), #9 (Not used)
+
+    // Champ #10 : R/W (0/1)
+    let read_write_u8 = match fields[10].trim().parse::<u8>() {
+        Ok(rw) => rw,
+        Err(e) => {
+            return Err(format!("R/W incorrect : {e}"));
+        }
+    };
+    tag.is_write = read_write_u8 == 1;
 
     // Champ #11 : Zone (décimal)
     let zone = match fields[11].trim().parse::<u8>() {
@@ -39,11 +61,14 @@ pub fn from_line_csv(line: &str) -> Result<Option<(u16, IdTag, Tag)>, String> {
         }
     };
 
-    // Construction de l'id_tag trouvé
-    let id_tag = IdTag::new(zone, tag_u16, [indice_0, indice_1, indice_2]);
+    // Champ #12 : Valeur par défaut
+    tag.default_value = fields[12].trim().to_string();
 
-    // On retourne les éléments identifiés
-    Ok(Some((address, id_tag, tag)))
+    // Construction de l'id_tag trouvé
+    tag.id_tag = IdTag::new(zone, tag_u16, [indice_0, indice_1, indice_2]);
+
+    // On retourne le tag construit
+    Ok(Some(tag))
 }
 
 /// Parse un champ hexadécimal de 1 caractère

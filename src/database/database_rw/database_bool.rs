@@ -1,5 +1,7 @@
 //! Accès aux données au format bool dans la database
 
+#[cfg(test)]
+use super::Tag;
 use super::{Database, IdTag};
 
 impl Database {
@@ -36,7 +38,6 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Tag;
 
     // Création d'une database de test
     fn test_setup(db: &mut Database) -> (u16, IdTag) {
@@ -44,10 +45,9 @@ mod tests {
         let id_tag = IdTag::default();
         let tag = Tag {
             address,
-            id_tag: id_tag.clone(),
-            is_internal: false,
+            ..Default::default()
         };
-        db.add_tag(0, &id_tag, &tag);
+        db.add_tag(&tag);
         (address, id_tag)
     }
 
