@@ -9,8 +9,8 @@ impl Database {
     #[allow(dead_code)]
     pub fn get_string_from_word_address(&self, word_address: WordAddress, width: usize) -> String {
         let vec_u8 = self.get_vec_u8_from_word_address(word_address, width);
-        let t: String = String::from_utf8_lossy(&vec_u8).into();
-        t
+        let string_value: String = String::from_utf8_lossy(&vec_u8).into();
+        string_value
     }
 
     /// Setter selon [`WordAddress`]

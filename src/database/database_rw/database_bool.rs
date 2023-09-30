@@ -14,7 +14,8 @@ impl Database {
     /// Setter selon [`WordAddress`]
     #[allow(dead_code)]
     pub fn set_bool_to_word_address(&mut self, word_address: WordAddress, value: bool) {
-        self.get_mut_vec_u8_from_word_address(word_address, 1)[0] = u8::from(value);
+        let vec_u8 = vec![u8::from(value)];
+        self.set_vec_u8_to_word_address(word_address, &vec_u8);
     }
 
     /// Getter selon l'[`IdTag`]

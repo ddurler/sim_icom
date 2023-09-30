@@ -122,16 +122,6 @@ impl Database {
         ret
     }
 
-    /// Extrait un `Vec<u8>` mutable de la [`Database`] selon [`WordAddress`]
-    pub fn get_mut_vec_u8_from_word_address(
-        &mut self,
-        word_address: WordAddress,
-        nb_u8: usize,
-    ) -> &mut [u8] {
-        let word_address = word_address as usize;
-        &mut self.vec_u8[2 * word_address..2 * word_address + nb_u8]
-    }
-
     /// Copie un `&[u8]` dans la [`Database`] selon [`WordAddress`]
     pub fn set_vec_u8_to_word_address(&mut self, word_address: WordAddress, vec_u8: &[u8]) {
         let mut word_address = 2 * word_address as usize;
