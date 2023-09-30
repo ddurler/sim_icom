@@ -5,6 +5,31 @@
 //!
 //! En interne, la [`Database`] est un `vec<u8>` de 2 * 32736 Bytes où les données sont encodées
 //! en 'big endian'.
+//!
+//! Chaque 'entrée' ([`WordAddress`] ou [`IdTag`]) de la [`Database`] donne accès à un [`Tag`].
+//! Ce [`Tag`] porte également une valeur d'un type défini [`TFormat`] pour accéder à une valeur
+//! générique [`TValue`]. Voir `Database::get_t_value_from_tag`
+//!
+//! Par ailleurs, on accède directement aux valeurs typées `bool`, `u8`, `u16`, ..., f32, f64 et string
+//! de la [`Database`]. Voir `Database::get_bool_from_word_address`, `Database::set_bool_to_word_address`,
+//! `Database::get_bool_from_id_tag` et `Database::set_bool_to_id_tag` par exemple pour un `bool`.
+//! Idem pour tous les autres types supportés.
+//!
+//! La [`Database`] peut être créée par la lecture d'un fichier au format .csv avec la primitive
+//! `Database::from_file`
+//!
+//! Sinon, une [`Database`] vide est créée par `Database::default` et il est nécessaire ensuite
+//! de définir tous les [`Tag`] de la [`Database`] avec la primitive `Database::add_tag`
+//!
+//! Pour accéder en lecture ou en écriture dans la  [`Database`], il faut spécifier un [`IdUser`].
+//!
+//! Dans la plupart des situations, on peut utiliser `ID_ANONYMOUS_USER`.
+//!
+//! `ID_ANONYMOUS_USER` est un [`IdUser`] qu'il est possible d'utiliser sans demander un [`IdUser`] spécifique
+//! mais l'utilisateur n'aura alors pas accès à son historique et/ou système de notification
+//!
+//! La primitive `Database::get_id_user` permet d'obtenir un nouveau [`IdUser`]
+//!
 
 use std::collections::HashMap;
 use std::fmt;
@@ -27,6 +52,14 @@ pub use tag::Tag;
 
 mod database_rw;
 
+/// Identificateur d'un utilisateur de la [`Database`]
+/// Il s'agit d'un numéro `u16` pour discriminer les utilisateurs et de proposer un historique dédié.
+pub type IdUser = u16;
+
+/// Utilisateur par défaut
+/// L'`[``IdUser``] = 0` est un utilisateur anonyme
+pub const ID_ANONYMOUS_USER: IdUser = 0;
+
 /// Adresse MODBUS pour accéder la [`Database`]
 /// Il s'agit d'une valeur entière `u16`.
 pub type WordAddress = u16;
@@ -45,6 +78,9 @@ pub struct Database {
 
     /// Correspondances [`IdTag`] -> [`Tag`]
     hash_tag: HashMap<IdTag, Tag>,
+
+    /// Générateur d'[`IdUser`]
+    id_user_seed: IdUser,
 }
 
 impl Default for Database {
@@ -53,6 +89,7 @@ impl Default for Database {
             vec_u8: [0_u8; 2 * 0x8000].to_vec(),
             hash_word_address: HashMap::new(),
             hash_tag: HashMap::new(),
+            id_user_seed: 0,
         }
     }
 }
@@ -65,7 +102,7 @@ impl fmt::Display for Database {
         word_addresses.sort_unstable();
         for word_address in word_addresses {
             if let Some(tag) = self.get_tag_from_word_address(word_address) {
-                let t_value = self.get_t_value_from_tag(tag);
+                let t_value = self.get_t_value_from_tag(ID_ANONYMOUS_USER, tag);
                 let unity = tag.unity.clone();
                 ret += &format!("{tag} = {t_value} {unity}\n");
             }
@@ -116,7 +153,7 @@ impl Database {
 
                         // Valeur par défaut ?
                         if !tag.default_value.is_empty() {
-                            db.set_value(&tag, &tag.default_value);
+                            db.set_value(ID_ANONYMOUS_USER, &tag, &tag.default_value);
                         }
                     }
                 }
@@ -151,6 +188,13 @@ impl Database {
         let id_tag = tag.id_tag.clone();
         self.hash_word_address.insert(word_address, id_tag.clone());
         self.hash_tag.insert(id_tag.clone(), tag);
+    }
+
+    /// Obtient un [`IdUser`] pour les opérations du la [`Database`]
+    #[allow(dead_code)]
+    pub fn get_id_user(&mut self) -> IdUser {
+        self.id_user_seed += 1;
+        self.id_user_seed
     }
 
     /// Extrait un [`Tag`] (non mutable) de la [`Database`] selon son [`IdTag`]

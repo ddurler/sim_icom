@@ -1,39 +1,50 @@
 //! Accès aux données au format `String` dans la [`Database`]
 
 #[cfg(test)]
-use super::Tag;
-use super::{Database, IdTag, WordAddress};
+use super::{Tag, ID_ANONYMOUS_USER};
+
+use super::{Database, IdTag, IdUser, WordAddress};
 
 impl Database {
     /// Getter selon [`WordAddress`]
     #[allow(dead_code)]
-    pub fn get_string_from_word_address(&self, word_address: WordAddress, width: usize) -> String {
-        let vec_u8 = self.get_vec_u8_from_word_address(word_address, width);
+    pub fn get_string_from_word_address(
+        &self,
+        id_user: IdUser,
+        word_address: WordAddress,
+        width: usize,
+    ) -> String {
+        let vec_u8 = self.get_vec_u8_from_word_address(id_user, word_address, width);
         let string_value: String = String::from_utf8_lossy(&vec_u8).into();
         string_value
     }
 
     /// Setter selon [`WordAddress`]
     #[allow(dead_code)]
-    pub fn set_string_to_word_address(&mut self, word_address: WordAddress, value: &str) {
+    pub fn set_string_to_word_address(
+        &mut self,
+        id_user: IdUser,
+        word_address: WordAddress,
+        value: &str,
+    ) {
         let vec_u8 = value.as_bytes().to_vec();
-        self.set_vec_u8_to_word_address(word_address, &vec_u8);
+        self.set_vec_u8_to_word_address(id_user, word_address, &vec_u8);
     }
 
     /// Getter selon l'[`IdTag`]
     #[allow(dead_code)]
-    pub fn get_string_from_id_tag(&self, id_tag: &IdTag, width: usize) -> String {
+    pub fn get_string_from_id_tag(&self, id_user: IdUser, id_tag: &IdTag, width: usize) -> String {
         match self.get_tag_from_id_tag(id_tag) {
-            Some(id_tag) => self.get_string_from_word_address(id_tag.word_address, width),
+            Some(id_tag) => self.get_string_from_word_address(id_user, id_tag.word_address, width),
             None => String::default(),
         }
     }
 
     /// Setter selon l'[`IdTag`]
     #[allow(dead_code)]
-    pub fn set_string_to_id_tag(&mut self, id_tag: &IdTag, value: &str) {
+    pub fn set_string_to_id_tag(&mut self, id_user: IdUser, id_tag: &IdTag, value: &str) {
         if let Some(id_tag) = self.get_tag_from_id_tag(id_tag) {
-            self.set_string_to_word_address(id_tag.word_address, value);
+            self.set_string_to_word_address(id_user, id_tag.word_address, value);
         }
     }
 }
@@ -59,13 +70,25 @@ mod tests {
         let mut db = Database::default();
         let (addr, _) = test_setup(&mut db);
 
-        assert_eq!(db.get_string_from_word_address(addr, 4), "\0\0\0\0");
+        assert_eq!(
+            db.get_string_from_word_address(ID_ANONYMOUS_USER, addr, 4),
+            "\0\0\0\0"
+        );
 
         let value = "TOTO";
-        db.set_string_to_word_address(addr, value);
-        assert_eq!(db.get_string_from_word_address(addr, 6), "TOTO\0\0");
-        assert_eq!(db.get_string_from_word_address(addr, 4), "TOTO");
-        assert_eq!(db.get_string_from_word_address(addr, 2), "TO");
+        db.set_string_to_word_address(ID_ANONYMOUS_USER, addr, value);
+        assert_eq!(
+            db.get_string_from_word_address(ID_ANONYMOUS_USER, addr, 6),
+            "TOTO\0\0"
+        );
+        assert_eq!(
+            db.get_string_from_word_address(ID_ANONYMOUS_USER, addr, 4),
+            "TOTO"
+        );
+        assert_eq!(
+            db.get_string_from_word_address(ID_ANONYMOUS_USER, addr, 2),
+            "TO"
+        );
     }
 
     #[test]
@@ -73,12 +96,24 @@ mod tests {
         let mut db = Database::default();
         let (_, id_tag) = test_setup(&mut db);
 
-        assert_eq!(db.get_string_from_id_tag(&id_tag, 4), "\0\0\0\0");
+        assert_eq!(
+            db.get_string_from_id_tag(ID_ANONYMOUS_USER, &id_tag, 4),
+            "\0\0\0\0"
+        );
 
         let value = "TOTO";
-        db.set_string_to_id_tag(&id_tag, value);
-        assert_eq!(db.get_string_from_id_tag(&id_tag, 6), "TOTO\0\0");
-        assert_eq!(db.get_string_from_id_tag(&id_tag, 4), "TOTO");
-        assert_eq!(db.get_string_from_id_tag(&id_tag, 2), "TO");
+        db.set_string_to_id_tag(ID_ANONYMOUS_USER, &id_tag, value);
+        assert_eq!(
+            db.get_string_from_id_tag(ID_ANONYMOUS_USER, &id_tag, 6),
+            "TOTO\0\0"
+        );
+        assert_eq!(
+            db.get_string_from_id_tag(ID_ANONYMOUS_USER, &id_tag, 4),
+            "TOTO"
+        );
+        assert_eq!(
+            db.get_string_from_id_tag(ID_ANONYMOUS_USER, &id_tag, 2),
+            "TO"
+        );
     }
 }
