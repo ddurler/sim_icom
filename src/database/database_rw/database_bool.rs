@@ -1,36 +1,36 @@
-//! Accès aux données au format bool dans la database
+//! Accès aux données au format bool dans la [`Database`]
 
 #[cfg(test)]
 use super::Tag;
-use super::{Database, IdTag};
+use super::{Database, IdTag, WordAddress};
 
 impl Database {
-    /// Getter selon l'adresse MODBUS u16
+    /// Getter selon [`WordAddress`]
     #[allow(dead_code)]
-    pub fn get_bool_from_address(&self, addr: u16) -> bool {
-        self.get_vec_u8_from_address(addr, 1)[0] != 0
+    pub fn get_bool_from_word_address(&self, word_address: WordAddress) -> bool {
+        self.get_vec_u8_from_word_address(word_address, 1)[0] != 0
     }
 
-    /// Setter selon l'adresse MODBUS u16
+    /// Setter selon [`WordAddress`]
     #[allow(dead_code)]
-    pub fn set_bool_to_address(&mut self, addr: u16, value: bool) {
-        self.get_mut_vec_u8_from_address(addr, 1)[0] = u8::from(value);
+    pub fn set_bool_to_word_address(&mut self, word_address: WordAddress, value: bool) {
+        self.get_mut_vec_u8_from_word_address(word_address, 1)[0] = u8::from(value);
     }
 
-    /// Getter selon l'`IdTag`
+    /// Getter selon l'[`IdTag`]
     #[allow(dead_code)]
     pub fn get_bool_from_id_tag(&self, id_tag: &IdTag) -> bool {
         match self.get_tag_from_id_tag(id_tag) {
-            Some(id_tag) => self.get_bool_from_address(id_tag.address),
+            Some(id_tag) => self.get_bool_from_word_address(id_tag.word_address),
             None => bool::default(),
         }
     }
 
-    /// Setter selon l'`IdTag`
+    /// Setter selon l'[`IdTag`]
     #[allow(dead_code)]
     pub fn set_bool_to_id_tag(&mut self, id_tag: &IdTag, value: bool) {
         if let Some(id_tag) = self.get_tag_from_id_tag(id_tag) {
-            self.set_bool_to_address(id_tag.address, value);
+            self.set_bool_to_word_address(id_tag.word_address, value);
         }
     }
 }
@@ -44,7 +44,7 @@ mod tests {
         let address: u16 = 0x1234;
         let id_tag = IdTag::default();
         let tag = Tag {
-            address,
+            word_address: address,
             ..Default::default()
         };
         db.add_tag(&tag);
@@ -56,13 +56,13 @@ mod tests {
         let mut db = Database::default();
         let (addr, _) = test_setup(&mut db);
 
-        assert_eq!(db.get_bool_from_address(addr), bool::default());
+        assert_eq!(db.get_bool_from_word_address(addr), bool::default());
 
-        db.set_bool_to_address(addr, true);
-        assert!(db.get_bool_from_address(addr));
+        db.set_bool_to_word_address(addr, true);
+        assert!(db.get_bool_from_word_address(addr));
 
-        db.set_bool_to_address(addr, false);
-        assert!(!db.get_bool_from_address(addr));
+        db.set_bool_to_word_address(addr, false);
+        assert!(!db.get_bool_from_word_address(addr));
     }
 
     #[test]

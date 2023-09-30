@@ -1,39 +1,39 @@
-//! Accès aux données au format `f32` dans la database
+//! Accès aux données au format `f32` dans la [`Database`]
 
 #[cfg(test)]
 use super::Tag;
-use super::{Database, IdTag};
+use super::{Database, IdTag, WordAddress};
 
 impl Database {
-    /// Getter selon l'adresse MODBUS u16
+    /// Getter selon [`WordAddress`]
     #[allow(dead_code)]
-    pub fn get_f32_from_address(&self, addr: u16) -> f32 {
-        let vec_u8 = self.get_vec_u8_from_address(addr, 4);
+    pub fn get_f32_from_word_address(&self, word_address: WordAddress) -> f32 {
+        let vec_u8 = self.get_vec_u8_from_word_address(word_address, 4);
         let vec_u8: [u8; 4] = vec_u8.try_into().unwrap();
         f32::from_be_bytes(vec_u8)
     }
 
-    /// Setter selon l'adresse MODBUS u16
+    /// Setter selon [`WordAddress`]
     #[allow(dead_code)]
-    pub fn set_f32_to_address(&mut self, addr: u16, value: f32) {
+    pub fn set_f32_to_word_address(&mut self, word_address: WordAddress, value: f32) {
         let vec_u8 = value.to_be_bytes();
-        self.set_vec_u8_to_address(addr, &vec_u8);
+        self.set_vec_u8_to_word_address(word_address, &vec_u8);
     }
 
-    /// Getter selon l'`IdTag`
+    /// Getter selon l'[`IdTag`]
     #[allow(dead_code)]
     pub fn get_f32_from_id_tag(&self, id_tag: &IdTag) -> f32 {
         match self.get_tag_from_id_tag(id_tag) {
-            Some(id_tag) => self.get_f32_from_address(id_tag.address),
+            Some(id_tag) => self.get_f32_from_word_address(id_tag.word_address),
             None => f32::default(),
         }
     }
 
-    /// Setter selon l'`IdTag`
+    /// Setter selon l'[`IdTag`]
     #[allow(dead_code)]
     pub fn set_f32_to_id_tag(&mut self, id_tag: &IdTag, value: f32) {
         if let Some(id_tag) = self.get_tag_from_id_tag(id_tag) {
-            self.set_f32_to_address(id_tag.address, value);
+            self.set_f32_to_word_address(id_tag.word_address, value);
         }
     }
 }
@@ -48,7 +48,7 @@ mod tests {
         let address: u16 = 0x1234;
         let id_tag = IdTag::default();
         let tag = Tag {
-            address,
+            word_address: address,
             ..Default::default()
         };
         db.add_tag(&tag);
@@ -60,14 +60,14 @@ mod tests {
         let mut db = Database::default();
         let (addr, _) = test_setup(&mut db);
 
-        assert_f32_near!(db.get_f32_from_address(addr), f32::default());
+        assert_f32_near!(db.get_f32_from_word_address(addr), f32::default());
 
         for value in [-1000.0, 0.0, 1000.0] {
-            db.set_f32_to_address(addr, value);
-            assert_f32_near!(db.get_f32_from_address(addr), value);
+            db.set_f32_to_word_address(addr, value);
+            assert_f32_near!(db.get_f32_from_word_address(addr), value);
 
-            db.set_f32_to_address(addr, value + 1.0);
-            assert_f32_near!(db.get_f32_from_address(addr), value + 1.0);
+            db.set_f32_to_word_address(addr, value + 1.0);
+            assert_f32_near!(db.get_f32_from_word_address(addr), value + 1.0);
         }
     }
 

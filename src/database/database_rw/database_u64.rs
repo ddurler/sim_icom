@@ -1,39 +1,39 @@
-//! Accès aux données au format `u64` dans la database
+//! Accès aux données au format `u64` dans la [`Database`]
 
 #[cfg(test)]
 use super::Tag;
-use super::{Database, IdTag};
+use super::{Database, IdTag, WordAddress};
 
 impl Database {
-    /// Getter selon l'adresse MODBUS u16
+    /// Getter selon [`WordAddress`]
     #[allow(dead_code)]
-    pub fn get_u64_from_address(&self, addr: u16) -> u64 {
-        let vec_u8 = self.get_vec_u8_from_address(addr, 8);
+    pub fn get_u64_from_word_address(&self, word_address: WordAddress) -> u64 {
+        let vec_u8 = self.get_vec_u8_from_word_address(word_address, 8);
         let vec_u8: [u8; 8] = vec_u8.try_into().unwrap();
         u64::from_be_bytes(vec_u8)
     }
 
-    /// Setter selon l'adresse MODBUS u16
+    /// Setter selon [`WordAddress`]
     #[allow(dead_code)]
-    pub fn set_u64_to_address(&mut self, addr: u16, value: u64) {
+    pub fn set_u64_to_word_address(&mut self, word_address: WordAddress, value: u64) {
         let vec_u8 = value.to_be_bytes();
-        self.set_vec_u8_to_address(addr, &vec_u8);
+        self.set_vec_u8_to_word_address(word_address, &vec_u8);
     }
 
-    /// Getter selon l'`IdTag`
+    /// Getter selon l'[`IdTag`]
     #[allow(dead_code)]
     pub fn get_u64_from_id_tag(&self, id_tag: &IdTag) -> u64 {
         match self.get_tag_from_id_tag(id_tag) {
-            Some(id_tag) => self.get_u64_from_address(id_tag.address),
+            Some(id_tag) => self.get_u64_from_word_address(id_tag.word_address),
             None => u64::default(),
         }
     }
 
-    /// Setter selon l'`IdTag`
+    /// Setter selon l'[`IdTag`]
     #[allow(dead_code)]
     pub fn set_u64_to_id_tag(&mut self, id_tag: &IdTag, value: u64) {
         if let Some(id_tag) = self.get_tag_from_id_tag(id_tag) {
-            self.set_u64_to_address(id_tag.address, value);
+            self.set_u64_to_word_address(id_tag.word_address, value);
         }
     }
 }
@@ -47,7 +47,7 @@ mod tests {
         let address: u16 = 0x1234;
         let id_tag = IdTag::default();
         let tag = Tag {
-            address,
+            word_address: address,
             ..Default::default()
         };
         db.add_tag(&tag);
@@ -59,14 +59,14 @@ mod tests {
         let mut db = Database::default();
         let (addr, _) = test_setup(&mut db);
 
-        assert_eq!(db.get_u64_from_address(addr), u64::default());
+        assert_eq!(db.get_u64_from_word_address(addr), u64::default());
 
         for value in [0_u64, 0x1_0000_u64, 0x1_0000_0000_u64] {
-            db.set_u64_to_address(addr, value);
-            assert_eq!(db.get_u64_from_address(addr), value);
+            db.set_u64_to_word_address(addr, value);
+            assert_eq!(db.get_u64_from_word_address(addr), value);
 
-            db.set_u64_to_address(addr, value + 1);
-            assert_eq!(db.get_u64_from_address(addr), value + 1);
+            db.set_u64_to_word_address(addr, value + 1);
+            assert_eq!(db.get_u64_from_word_address(addr), value + 1);
         }
     }
 
