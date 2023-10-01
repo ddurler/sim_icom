@@ -1,6 +1,9 @@
 //! Module pour la gestion des différents formats dans la [`Database`]
 
-use super::{Database, IdTag, IdUser, TFormat, TValue, Tag, WordAddress, ID_ANONYMOUS_USER};
+#[cfg(test)]
+use super::ID_ANONYMOUS_USER;
+
+use super::{Database, IdTag, IdUser, TFormat, TValue, Tag, WordAddress};
 
 mod database_bool;
 mod database_f32;
@@ -120,10 +123,11 @@ impl Database {
         nb_u8: usize,
     ) -> Vec<u8> {
         let mut ret = vec![];
-        let word_address = word_address as usize;
-        for n in 2 * word_address..2 * word_address + nb_u8 {
+        let word_address_usize = word_address as usize;
+        for n in 2 * word_address_usize..2 * word_address_usize + nb_u8 {
             ret.push(self.vec_u8[n]);
         }
+
         ret
     }
 
@@ -140,11 +144,13 @@ impl Database {
             self.vec_u8[u8_address] = *value;
             u8_address += 1;
         }
-        if id_user != ID_ANONYMOUS_USER {
-            let tag = self.get_tag_from_word_address_unstable(word_address);
-            if tag.contains_word_address(word_address) {
-                println!("{tag} written by user #{id_user}");
-            }
+
+        // Notification de la mise à jour
+        let tag = self
+            .get_tag_from_word_address_unstable(word_address)
+            .clone();
+        if tag.contains_word_address(word_address) {
+            self.user_write_tag(id_user, &tag);
         }
     }
 }

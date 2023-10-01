@@ -26,7 +26,7 @@
 //! Dans la plupart des situations, on peut utiliser `ID_ANONYMOUS_USER`.
 //!
 //! `ID_ANONYMOUS_USER` est un [`IdUser`] qu'il est possible d'utiliser sans demander un [`IdUser`] spécifique
-//! mais l'utilisateur n'aura alors pas accès à son historique et/ou système de notification
+//! mais l'utilisateur n'aura alors pas accès à un historique dédié de notification
 //!
 //! La primitive `Database::get_id_user` permet d'obtenir un nouveau [`IdUser`]
 //!
@@ -51,6 +51,9 @@ mod tag;
 pub use tag::Tag;
 
 mod database_rw;
+
+mod id_users;
+use id_users::IdUsers;
 
 /// Identificateur d'un utilisateur de la [`Database`]
 /// Il s'agit d'un numéro `u16` pour discriminer les utilisateurs et de proposer un historique dédié.
@@ -79,8 +82,8 @@ pub struct Database {
     /// Correspondances [`IdTag`] -> [`Tag`]
     hash_tag: HashMap<IdTag, Tag>,
 
-    /// Générateur d'[`IdUser`]
-    id_user_seed: IdUser,
+    /// Gestion des [`IdUsers`]
+    id_users: IdUsers,
 }
 
 impl Default for Database {
@@ -89,7 +92,7 @@ impl Default for Database {
             vec_u8: [0_u8; 2 * 0x8000].to_vec(),
             hash_word_address: HashMap::new(),
             hash_tag: HashMap::new(),
-            id_user_seed: 0,
+            id_users: IdUsers::default(),
         }
     }
 }
@@ -174,10 +177,12 @@ impl Database {
 
     /// Ajoute un [`Tag`] à une [`WordAddress`] dans la [`Database`]
     /// Cette fonction n'autorise pas de définir un [`Tag`] à une [`WordAddress`] déjà affectée.
+    /// Cette fonction n'autorise pas de définir un [`Tag`] avec un [`IdTag`] déjà affectée.
     /// Par contre, cette fonction ne contrôle pas le recouvrement d'[`WordAddress`] entre les
     /// différents [`Tag`] de la [`Database`] (des données qui empiètent sur d'autres [`Tag`])
     /// # panics
     /// panic! si l'[`WordAddress`] est déjà attribuée
+    /// panic! si l'[`IdTag`] du [`Tag`] est déjà attribué
     pub fn add_tag(&mut self, tag: &Tag) {
         let tag = tag.clone();
         let word_address = tag.word_address;
@@ -185,16 +190,13 @@ impl Database {
             self.get_tag_from_word_address(word_address).is_none(),
             "Ajout {tag} à une adresse déjà attribuée"
         );
+        assert!(
+            self.get_tag_from_id_tag(&tag.id_tag).is_none(),
+            "Ajout {tag} avec un id_tag déjà attribué"
+        );
         let id_tag = tag.id_tag.clone();
         self.hash_word_address.insert(word_address, id_tag.clone());
         self.hash_tag.insert(id_tag.clone(), tag);
-    }
-
-    /// Obtient un [`IdUser`] pour les opérations du la [`Database`]
-    #[allow(dead_code)]
-    pub fn get_id_user(&mut self) -> IdUser {
-        self.id_user_seed += 1;
-        self.id_user_seed
     }
 
     /// Extrait un [`Tag`] (non mutable) de la [`Database`] selon son [`IdTag`]
