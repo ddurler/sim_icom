@@ -28,7 +28,7 @@ impl Database {
 
     /// Getter selon l'[`IdTag`]
     #[allow(dead_code)]
-    pub fn get_u32_from_id_tag(&self, id_user: IdUser, id_tag: &IdTag) -> u32 {
+    pub fn get_u32_from_id_tag(&self, id_user: IdUser, id_tag: IdTag) -> u32 {
         match self.get_tag_from_id_tag(id_tag) {
             Some(id_tag) => self.get_u32_from_word_address(id_user, id_tag.word_address),
             None => u32::default(),
@@ -37,7 +37,7 @@ impl Database {
 
     /// Setter selon l'[`IdTag`]
     #[allow(dead_code)]
-    pub fn set_u32_to_id_tag(&mut self, id_user: IdUser, id_tag: &IdTag, value: u32) {
+    pub fn set_u32_to_id_tag(&mut self, id_user: IdUser, id_tag: IdTag, value: u32) {
         if let Some(id_tag) = self.get_tag_from_id_tag(id_tag) {
             self.set_u32_to_word_address(id_user, id_tag.word_address, value);
         }
@@ -88,19 +88,16 @@ mod tests {
         let (_, id_tag) = test_setup(&mut db);
 
         assert_eq!(
-            db.get_u32_from_id_tag(ID_ANONYMOUS_USER, &id_tag),
+            db.get_u32_from_id_tag(ID_ANONYMOUS_USER, id_tag),
             u32::default()
         );
 
         for value in [0_u32, 1_000_u32, 1_000_000_u32] {
-            db.set_u32_to_id_tag(ID_ANONYMOUS_USER, &id_tag, value);
-            assert_eq!(db.get_u32_from_id_tag(ID_ANONYMOUS_USER, &id_tag), value);
+            db.set_u32_to_id_tag(ID_ANONYMOUS_USER, id_tag, value);
+            assert_eq!(db.get_u32_from_id_tag(ID_ANONYMOUS_USER, id_tag), value);
 
-            db.set_u32_to_id_tag(ID_ANONYMOUS_USER, &id_tag, value + 1);
-            assert_eq!(
-                db.get_u32_from_id_tag(ID_ANONYMOUS_USER, &id_tag),
-                value + 1
-            );
+            db.set_u32_to_id_tag(ID_ANONYMOUS_USER, id_tag, value + 1);
+            assert_eq!(db.get_u32_from_id_tag(ID_ANONYMOUS_USER, id_tag), value + 1);
         }
     }
 }

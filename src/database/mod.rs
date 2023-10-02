@@ -191,18 +191,17 @@ impl Database {
             "Ajout {tag} à une adresse déjà attribuée"
         );
         assert!(
-            self.get_tag_from_id_tag(&tag.id_tag).is_none(),
+            self.get_tag_from_id_tag(tag.id_tag).is_none(),
             "Ajout {tag} avec un id_tag déjà attribué"
         );
-        let id_tag = tag.id_tag.clone();
-        self.hash_word_address.insert(word_address, id_tag.clone());
-        self.hash_tag.insert(id_tag.clone(), tag);
+        self.hash_word_address.insert(word_address, tag.id_tag);
+        self.hash_tag.insert(tag.id_tag, tag);
     }
 
     /// Extrait un [`Tag`] (non mutable) de la [`Database`] selon son [`IdTag`]
     #[allow(dead_code)]
-    pub fn get_tag_from_id_tag(&self, id_tag: &IdTag) -> Option<&Tag> {
-        self.hash_tag.get(id_tag)
+    pub fn get_tag_from_id_tag(&self, id_tag: IdTag) -> Option<&Tag> {
+        self.hash_tag.get(&id_tag)
     }
 
     /// Extrait un [`Tag`] (non mutable) de la [`Database`] selon [`WordAddress`]
@@ -215,46 +214,67 @@ impl Database {
         }
     }
 
-    /// Extrait un [`Tag`] (non mutable) possible de la [`Database`] selon son [`WordAddress`]
-    /// Cette fonction retour le même [`Tag`] de `get_tag_from_address` si [`WordAddress`] correspond avec
-    /// un [`Tag`] existant.
-    /// Sinon, la fonction retourne le [`Tag`] dont [`WordAddress`] et sa longueur 'pourrait' correspondre
-    /// Utiliser la fonction `Tag::contains_word_address` pour contrôler ensuite si le [`Tag`] retourné
-    /// utilise effectivement [`WordAddress`] soumise
-    /// # panics
-    /// Cette fonction panic! si la [`Database`] est 'vide'
-    /// Cette fonction panic! si [`WordAddress`] soumis est en amont du 1er [`Tag`] de la [`Database`]
+    /// Extrait la liste des [`Tag`] (non mutable) de la [`Database`] selon son [`WordAddress`] et le
+    /// nombre de words dans cette [`Database`]
     #[allow(dead_code)]
     #[allow(while_true)]
-    pub fn get_tag_from_word_address_unstable(&self, word_address: WordAddress) -> &Tag {
-        // Retourne un tag si correspondance direct
-        if let Some(id_tag) = self.get_tag_from_word_address(word_address) {
-            return id_tag;
-        }
-        // panic! si la [`Database`] est vide
-        assert!(
-            !self.hash_word_address.is_empty(),
-            "La database ets vide (aucun tag défini !)"
-        );
-        // Sinon recherche en remontant dans les [`WordAddress`]...
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn get_tags_from_word_address_area(
+        &self,
+        word_address: WordAddress,
+        nb_words: usize,
+    ) -> Vec<Tag> {
+        let mut ret_tags = vec![];
+
+        // Recherche le premier tag dans l'espace d'adresses
         let mut previous_word_address = word_address;
-        while true {
-            assert!(
-                previous_word_address != 0,
-                "Aucun tag avant {word_address:04X} dans la database !)"
-            );
-            previous_word_address -= 1;
-            if let Some(id_tag) = self.get_tag_from_word_address(previous_word_address) {
-                return id_tag;
+        if let Some(tag) = self.get_tag_from_word_address(word_address) {
+            ret_tags.push(tag.clone());
+        } else {
+            // Sinon recherche en remontant dans les [`WordAddress`]...
+            while true {
+                if previous_word_address == 0 {
+                    // Pas de tag trouvé en amont du word_address/nb_words annoncé
+                    return vec![];
+                }
+                previous_word_address -= 1;
+                if let Some(tag) = self.get_tag_from_word_address(previous_word_address) {
+                    if tag.contains_word_address_area(word_address, nb_words) {
+                        ret_tags.push(tag.clone());
+                        break;
+                    }
+                    // Pas de tag trouvé en amont de l'word_address/nb_words annoncé
+                    return vec![];
+                }
             }
         }
-        unreachable!()
+
+        // Ici, ret_tags contient un tag en qui empiète sur la zone à partir de word_address
+        // On intègre également tous les tags suivants qui empiètent...
+        let mut forward_word_address = word_address;
+        while true {
+            if forward_word_address > word_address + nb_words as u16 {
+                // On est en dehors de la zone spécifiée
+                break;
+            }
+            forward_word_address += 1;
+            if let Some(tag) = self.get_tag_from_word_address(forward_word_address) {
+                if tag.contains_word_address_area(word_address, nb_words) {
+                    // Tag suivant qui est également dans la zone spécifiée
+                    ret_tags.push(tag.clone());
+                } else {
+                    break;
+                }
+            }
+        }
+
+        ret_tags
     }
 
     /// Extrait un [`Tag`] mutable de la [`Database`] selon son [`IdTag`]
     #[allow(dead_code)]
-    pub fn get_mut_tag_from_id_tag(&mut self, id_tag: &IdTag) -> Option<&mut Tag> {
-        self.hash_tag.get_mut(id_tag)
+    pub fn get_mut_tag_from_id_tag(&mut self, id_tag: IdTag) -> Option<&mut Tag> {
+        self.hash_tag.get_mut(&id_tag)
     }
 
     /// Extrait un [`Tag`] mutable de la [`Database`] selon [`WordAddress`]

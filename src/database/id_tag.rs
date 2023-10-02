@@ -3,7 +3,7 @@
 use std::fmt;
 
 /// Référence unique d'un `Tag` de la database (zone +  `num_tag` + indices)
-#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct IdTag {
     pub zone: u8,
     pub num_tag: u16,

@@ -146,10 +146,9 @@ impl Database {
         }
 
         // Notification de la mise à jour
-        let tag = self
-            .get_tag_from_word_address_unstable(word_address)
-            .clone();
-        if tag.contains_word_address(word_address) {
+        let nb_words = (vec_u8.len() + 1) / 2;
+        let tags = self.get_tags_from_word_address_area(word_address, nb_words);
+        for tag in tags {
             self.user_write_tag(id_user, &tag);
         }
     }

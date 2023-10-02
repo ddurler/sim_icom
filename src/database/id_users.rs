@@ -151,7 +151,7 @@ mod tests {
         assert!(db.get_change(id_user, true, true).is_none());
 
         // Mise à jour de la database par un utilisateur anonyme
-        db.set_u16_to_id_tag(ID_ANONYMOUS_USER, &tag.id_tag, 1);
+        db.set_u16_to_id_tag(ID_ANONYMOUS_USER, tag.id_tag, 1);
 
         // Pas d'historique pour user s'il n'est pas intéressé par les modifications faites
         // par les utilisateurs anonymes
@@ -162,7 +162,7 @@ mod tests {
         assert!(db.get_change(id_user, true, true).is_none());
 
         // Nouvelle mise à jour de la database par un utilisateur anonyme
-        db.set_u16_to_id_tag(ID_ANONYMOUS_USER, &tag.id_tag, 2);
+        db.set_u16_to_id_tag(ID_ANONYMOUS_USER, tag.id_tag, 2);
 
         // Cette modification est notifiée à user s'il s'intéresse aux modifications faites
         // par les utilisateurs anonymes
@@ -191,7 +191,7 @@ mod tests {
         let id_user = db.get_id_user();
 
         // Mise à jour de la database par user
-        db.set_u16_to_id_tag(id_user, &tag.id_tag, 1);
+        db.set_u16_to_id_tag(id_user, tag.id_tag, 1);
 
         // Pas d'historique pour user s'il n'est pas intéressé par ses propres modifications
         assert!(db.get_change(id_user, false, true).is_none());
@@ -201,7 +201,7 @@ mod tests {
         assert!(db.get_change(id_user, true, true).is_none());
 
         // Nouvelle mise à jour de la database par un user
-        db.set_u16_to_id_tag(id_user, &tag.id_tag, 2);
+        db.set_u16_to_id_tag(id_user, tag.id_tag, 2);
 
         // Cette modification est notifiée à user s'il s'intéresse à ses propres modifications
         let option_tag = db.get_change(id_user, true, true);
@@ -238,10 +238,10 @@ mod tests {
         let id_user_2 = db.get_id_user();
 
         // Mise à jour de la database par user_1
-        db.set_u16_to_id_tag(id_user_1, &tag_1.id_tag, 1);
+        db.set_u16_to_id_tag(id_user_1, tag_1.id_tag, 1);
 
         // Mise à jour de la database par user_2
-        db.set_u16_to_id_tag(id_user_2, &tag_2.id_tag, 2);
+        db.set_u16_to_id_tag(id_user_2, tag_2.id_tag, 2);
 
         // User_1 est notifié de la modif de user_2
         let option_tag = db.get_change(id_user_1, false, true);
@@ -277,7 +277,7 @@ mod tests {
         let id_user = db.get_id_user();
 
         // Mise à jour de la database par user
-        db.set_u16_to_id_tag(id_user, &tag.id_tag, 1);
+        db.set_u16_to_id_tag(id_user, tag.id_tag, 1);
 
         // User qui ne s'identifie pas correctement
         let id_unknown_user = 0x1234;
@@ -292,12 +292,63 @@ mod tests {
         assert!(db.get_change(id_user, true, true).is_none());
 
         // Modif de la database pas ce user non identifié
-        db.set_u16_to_id_tag(id_unknown_user, &tag.id_tag, 2);
+        db.set_u16_to_id_tag(id_unknown_user, tag.id_tag, 2);
 
         // Toujours pas d'historique pour user non identifié
         assert!(db.get_change(id_unknown_user, true, true).is_none());
 
         // Par contre l'utilisateur identifié a bien accès aux modifications de cet utilisateur non identifié
         assert!(db.get_change(id_user, true, true).is_some());
+    }
+
+    #[test]
+    fn test_multi_tags_notifications() {
+        let mut db = Database::default();
+
+        // Création d'un id_tag_1/tag_1 en 0x10
+        let id_tag_1 = IdTag::new(1, 10, [0, 0, 0]);
+        let tag_1 = Tag {
+            word_address: 0x0010,
+            id_tag: id_tag_1,
+            t_format: TFormat::U16,
+            ..Default::default()
+        };
+        db.add_tag(&tag_1);
+
+        // Création d'un id_tag_2/tag_2 en 0x11
+        let id_tag_2 = IdTag::new(1, 11, [0, 0, 0]);
+        let tag_2 = Tag {
+            word_address: 0x0011,
+            id_tag: id_tag_2,
+            t_format: TFormat::U16,
+            ..Default::default()
+        };
+        db.add_tag(&tag_2);
+
+        // Création d'un user
+        let id_user = db.get_id_user();
+
+        // Pas de modification initialement
+        assert!(db.get_change(id_user, true, true).is_none());
+
+        // Mise à jour de la database par user
+        // La mise à jour effectuée modifie les 2 tags tag_1 et tag_2
+        db.set_u32_to_id_tag(id_user, id_tag_1, 0x0001_0002);
+
+        // L'utilisateur doit pouvoir retrouver les notifications pour 2 tags modifiés
+        let notif_1 = db.get_change(id_user, true, true);
+        assert!(notif_1.is_some());
+        let notif_2 = db.get_change(id_user, true, true);
+        assert!(notif_2.is_some());
+
+        // Et les notifications doivent référencer tag_1 et tag_2 (par forcément dans l'ordre...)
+        let notif_1_id_tag = notif_1.unwrap().id_tag;
+        let notif_2_id_tag = notif_2.unwrap().id_tag;
+        assert!(notif_1_id_tag != notif_2_id_tag);
+        assert!(notif_1_id_tag == id_tag_1 || notif_1_id_tag == id_tag_2);
+        assert!(notif_2_id_tag == id_tag_1 || notif_2_id_tag == id_tag_2);
+
+        // Plus de notification pour l'utilisateur identifié
+        assert!(db.get_change(id_user, true, true).is_none());
     }
 }

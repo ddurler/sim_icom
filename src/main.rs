@@ -13,7 +13,7 @@ fn main() {
     let id_user = db.get_id_user();
 
     // Choisi l'id_tag d'un tag à une adresse MODBUS
-    let id_tag = db.get_tag_from_word_address(0x0).unwrap().id_tag.clone();
+    let id_tag = db.get_tag_from_word_address(0x0).unwrap().id_tag;
 
     println!(
         "Valeur initiale : {}",
@@ -48,8 +48,8 @@ fn main() {
         let id_user = db.get_id_user();
 
         // Modifier la valeur (méthode via l'id_tag)
-        let value = db.get_u8_from_id_tag(id_user, &id_tag);
-        db.set_u8_to_id_tag(id_user, &id_tag, value + 20);
+        let value = db.get_u8_from_id_tag(id_user, id_tag);
+        db.set_u8_to_id_tag(id_user, id_tag, value + 20);
     });
 
     // Attendre que les threads se terminent

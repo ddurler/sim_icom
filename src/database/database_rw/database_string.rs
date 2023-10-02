@@ -33,7 +33,7 @@ impl Database {
 
     /// Getter selon l'[`IdTag`]
     #[allow(dead_code)]
-    pub fn get_string_from_id_tag(&self, id_user: IdUser, id_tag: &IdTag, width: usize) -> String {
+    pub fn get_string_from_id_tag(&self, id_user: IdUser, id_tag: IdTag, width: usize) -> String {
         match self.get_tag_from_id_tag(id_tag) {
             Some(id_tag) => self.get_string_from_word_address(id_user, id_tag.word_address, width),
             None => String::default(),
@@ -42,7 +42,7 @@ impl Database {
 
     /// Setter selon l'[`IdTag`]
     #[allow(dead_code)]
-    pub fn set_string_to_id_tag(&mut self, id_user: IdUser, id_tag: &IdTag, value: &str) {
+    pub fn set_string_to_id_tag(&mut self, id_user: IdUser, id_tag: IdTag, value: &str) {
         if let Some(id_tag) = self.get_tag_from_id_tag(id_tag) {
             self.set_string_to_word_address(id_user, id_tag.word_address, value);
         }
@@ -97,22 +97,22 @@ mod tests {
         let (_, id_tag) = test_setup(&mut db);
 
         assert_eq!(
-            db.get_string_from_id_tag(ID_ANONYMOUS_USER, &id_tag, 4),
+            db.get_string_from_id_tag(ID_ANONYMOUS_USER, id_tag, 4),
             "\0\0\0\0"
         );
 
         let value = "TOTO";
-        db.set_string_to_id_tag(ID_ANONYMOUS_USER, &id_tag, value);
+        db.set_string_to_id_tag(ID_ANONYMOUS_USER, id_tag, value);
         assert_eq!(
-            db.get_string_from_id_tag(ID_ANONYMOUS_USER, &id_tag, 6),
+            db.get_string_from_id_tag(ID_ANONYMOUS_USER, id_tag, 6),
             "TOTO\0\0"
         );
         assert_eq!(
-            db.get_string_from_id_tag(ID_ANONYMOUS_USER, &id_tag, 4),
+            db.get_string_from_id_tag(ID_ANONYMOUS_USER, id_tag, 4),
             "TOTO"
         );
         assert_eq!(
-            db.get_string_from_id_tag(ID_ANONYMOUS_USER, &id_tag, 2),
+            db.get_string_from_id_tag(ID_ANONYMOUS_USER, id_tag, 2),
             "TO"
         );
     }

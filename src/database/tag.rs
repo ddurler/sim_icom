@@ -45,13 +45,17 @@ impl fmt::Display for Tag {
 }
 
 impl Tag {
-    /// Retourne true si le [`Tag`] (ou une partie du [`Tag`]) utilise cette [`WordAddress`]
-    #[allow(dead_code)]
-    #[allow(clippy::cast_possible_truncation)]
-    pub fn contains_word_address(&self, word_address: WordAddress) -> bool {
-        let address_start = self.word_address;
-        let nb_word = self.t_format.nb_words() as u16;
-        address_start <= word_address && word_address < address_start + nb_word
+    /// Retourne true si le [`Tag`] (ou une partie du [`Tag`]) utilise cette [`WordAddress`] + `nb_words`
+    pub fn contains_word_address_area(&self, word_address: WordAddress, nb_words: usize) -> bool {
+        // Tous les calculs se font en usize
+        let word_address_start = word_address as usize;
+        let word_address_end = word_address_start + nb_words - 1;
+
+        let tag_address_start = self.word_address as usize;
+        let tag_nb_words = self.t_format.nb_words();
+        let tag_address_end = tag_address_start + tag_nb_words - 1;
+
+        word_address_end >= tag_address_start && word_address_start <= tag_address_end
     }
 }
 
@@ -60,25 +64,53 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_tag() {
+    fn test_tag_contains_word_address_area() {
         let mut tag = Tag::default();
         let _ = format!("{tag}");
 
         // Test un bool à l'adresse 0x0010 (1 word)
         tag.word_address = 0x0010;
         tag.t_format = TFormat::Bool;
-        assert!(!tag.contains_word_address(0x000F));
-        assert!(tag.contains_word_address(0x0010));
-        assert!(!tag.contains_word_address(0x0011));
+        // avant
+        assert!(!tag.contains_word_address_area(0x000F, 1));
+        // avant mais empiète...
+        assert!(tag.contains_word_address_area(0x000F, 2));
+        assert!(tag.contains_word_address_area(0x000F, 3));
+        // dedans
+        assert!(tag.contains_word_address_area(0x0010, 1));
+        // dedans et dépasse
+        assert!(tag.contains_word_address_area(0x0010, 2));
+        // après
+        assert!(!tag.contains_word_address_area(0x0011, 1));
+        assert!(!tag.contains_word_address_area(0x0011, 2));
 
         // Test un F64 à l'adresse 0x0020 (4 words)
         tag.word_address = 0x0020;
         tag.t_format = TFormat::F64;
-        assert!(!tag.contains_word_address(0x001F));
-        assert!(tag.contains_word_address(0x0020));
-        assert!(tag.contains_word_address(0x0021));
-        assert!(tag.contains_word_address(0x0022));
-        assert!(tag.contains_word_address(0x0023));
-        assert!(!tag.contains_word_address(0x0024));
+        // avant
+        assert!(!tag.contains_word_address_area(0x001E, 1));
+        assert!(!tag.contains_word_address_area(0x001E, 2));
+        // avant mais empiète...
+        assert!(tag.contains_word_address_area(0x001E, 3));
+        assert!(tag.contains_word_address_area(0x001E, 4));
+        assert!(tag.contains_word_address_area(0x001E, 5));
+        assert!(tag.contains_word_address_area(0x001E, 6));
+        assert!(tag.contains_word_address_area(0x001E, 7));
+        assert!(tag.contains_word_address_area(0x001E, 8));
+        // dedans
+        assert!(tag.contains_word_address_area(0x0020, 1));
+        assert!(tag.contains_word_address_area(0x0020, 2));
+        assert!(tag.contains_word_address_area(0x0020, 3));
+        assert!(tag.contains_word_address_area(0x0020, 4));
+        assert!(tag.contains_word_address_area(0x0020, 5));
+        // dedans et dépasse
+        assert!(tag.contains_word_address_area(0x0022, 1));
+        assert!(tag.contains_word_address_area(0x0022, 2));
+        assert!(tag.contains_word_address_area(0x0022, 3));
+
+        // après
+        assert!(!tag.contains_word_address_area(0x0024, 1));
+        assert!(!tag.contains_word_address_area(0x0024, 2));
+        assert!(!tag.contains_word_address_area(0x0024, 3));
     }
 }

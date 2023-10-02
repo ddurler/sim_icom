@@ -26,7 +26,7 @@ impl Database {
 
     /// Getter selon l'[`IdTag`]
     #[allow(dead_code)]
-    pub fn get_bool_from_id_tag(&self, id_user: IdUser, id_tag: &IdTag) -> bool {
+    pub fn get_bool_from_id_tag(&self, id_user: IdUser, id_tag: IdTag) -> bool {
         match self.get_tag_from_id_tag(id_tag) {
             Some(id_tag) => self.get_bool_from_word_address(id_user, id_tag.word_address),
             None => bool::default(),
@@ -35,7 +35,7 @@ impl Database {
 
     /// Setter selon l'[`IdTag`]
     #[allow(dead_code)]
-    pub fn set_bool_to_id_tag(&mut self, id_user: IdUser, id_tag: &IdTag, value: bool) {
+    pub fn set_bool_to_id_tag(&mut self, id_user: IdUser, id_tag: IdTag, value: bool) {
         if let Some(id_tag) = self.get_tag_from_id_tag(id_tag) {
             self.set_bool_to_word_address(id_user, id_tag.word_address, value);
         }
@@ -81,14 +81,14 @@ mod tests {
         let (_, id_tag) = test_setup(&mut db);
 
         assert_eq!(
-            db.get_bool_from_id_tag(ID_ANONYMOUS_USER, &id_tag),
+            db.get_bool_from_id_tag(ID_ANONYMOUS_USER, id_tag),
             bool::default()
         );
 
-        db.set_bool_to_id_tag(ID_ANONYMOUS_USER, &id_tag, true);
-        assert!(db.get_bool_from_id_tag(ID_ANONYMOUS_USER, &id_tag));
+        db.set_bool_to_id_tag(ID_ANONYMOUS_USER, id_tag, true);
+        assert!(db.get_bool_from_id_tag(ID_ANONYMOUS_USER, id_tag));
 
-        db.set_bool_to_id_tag(ID_ANONYMOUS_USER, &id_tag, false);
-        assert!(!db.get_bool_from_id_tag(ID_ANONYMOUS_USER, &id_tag));
+        db.set_bool_to_id_tag(ID_ANONYMOUS_USER, id_tag, false);
+        assert!(!db.get_bool_from_id_tag(ID_ANONYMOUS_USER, id_tag));
     }
 }
