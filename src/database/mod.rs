@@ -215,7 +215,7 @@ impl Database {
     }
 
     /// Extrait la liste des [`Tag`] (non mutable) de la [`Database`] selon son [`WordAddress`] et le
-    /// nombre de words dans cette [`Database`]
+    /// nombre de mots à partir de cette [`WordAddress`] dans la [`Database`]
     #[allow(dead_code)]
     #[allow(while_true)]
     #[allow(clippy::cast_possible_truncation)]
@@ -229,28 +229,30 @@ impl Database {
         // Recherche le premier tag dans l'espace d'adresses
         let mut previous_word_address = word_address;
         if let Some(tag) = self.get_tag_from_word_address(word_address) {
+            // L'adresse spécifiée correspond avec un tag défini
             ret_tags.push(tag.clone());
         } else {
             // Sinon recherche en remontant dans les [`WordAddress`]...
             while true {
                 if previous_word_address == 0 {
-                    // Pas de tag trouvé en amont du word_address/nb_words annoncé
+                    // Pas de tag trouvé en amont du word_address spécifié
                     return vec![];
                 }
                 previous_word_address -= 1;
                 if let Some(tag) = self.get_tag_from_word_address(previous_word_address) {
+                    // Un tag trouvé en amont du word_address spécifié
                     if tag.contains_word_address_area(word_address, nb_words) {
                         ret_tags.push(tag.clone());
                         break;
                     }
-                    // Pas de tag trouvé en amont de l'word_address/nb_words annoncé
+                    // Ce de tag trouvé en très en amont du word_address/nb_words annoncé
                     return vec![];
                 }
             }
         }
 
-        // Ici, ret_tags contient un tag en qui empiète sur la zone à partir de word_address
-        // On intègre également tous les tags suivants qui empiètent...
+        // Ici, ret_tags contient tag en qui empiète sur la zone à partir de word_address
+        // On va inclure également tous les tags suivants qui empiètent...
         let mut forward_word_address = word_address;
         while true {
             if forward_word_address > word_address + nb_words as u16 {

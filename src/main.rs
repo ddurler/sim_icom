@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 
 mod database;
 use database::Database;
@@ -29,27 +30,72 @@ fn main() {
 
     // Créer les threads
     let thread1 = thread::spawn(move || {
-        // Verrouiller la database partagée pour accéder à sa valeur
-        let mut db = thread1_data.lock().unwrap();
+        let id_user;
+        {
+            // Verrouiller la database partagée pour accéder à sa valeur
+            let mut db = thread1_data.lock().unwrap();
 
-        // Obtient un id_user pour les opérations
-        let id_user = db.get_id_user();
+            // Obtient un id_user pour les opérations
+            id_user = db.get_id_user();
+        }
 
-        // Modifier une valeur (méthode via l'adresse)
-        let value = db.get_u8_from_word_address(id_user, 0);
-        db.set_u8_to_word_address(id_user, 0, value + 10);
+        std::thread::sleep(Duration::from_millis(100));
+
+        {
+            // Verrouiller la database partagée pour accéder à sa valeur
+            let mut db = thread1_data.lock().unwrap();
+
+            // Modifier une valeur (méthode via l'id_tag)
+            let value = db.get_u8_from_word_address(id_user, 0);
+            db.set_u8_to_word_address(id_user, 0, value + 10);
+        }
+
+        std::thread::sleep(Duration::from_millis(100));
+
+        {
+            // Verrouiller la database partagée pour accéder à sa valeur
+            let mut db = thread1_data.lock().unwrap();
+
+            // Voir s'il y a un notification d'un autre utilisateur
+            if let Some(tag) = db.get_change(id_user, false, false) {
+                println!("User #{id_user} notifié du changement de {tag}");
+            }
+        }
+
     });
 
     let thread2 = thread::spawn(move || {
-        // Verrouiller la database partagée pour accéder à sa valeur
-        let mut db = thread2_data.lock().unwrap();
+        let id_user;
+        {
+            // Verrouiller la database partagée pour accéder à sa valeur
+            let mut db = thread2_data.lock().unwrap();
 
-        // Obtient un id_user pour les opérations
-        let id_user = db.get_id_user();
+            // Obtient un id_user pour les opérations
+            id_user = db.get_id_user();
+        }
 
-        // Modifier la valeur (méthode via l'id_tag)
-        let value = db.get_u8_from_id_tag(id_user, id_tag);
-        db.set_u8_to_id_tag(id_user, id_tag, value + 20);
+        std::thread::sleep(Duration::from_millis(100));
+
+        {
+            // Verrouiller la database partagée pour accéder à sa valeur
+            let mut db = thread2_data.lock().unwrap();
+
+            // Modifier une valeur (méthode via l'id_tag)
+            let value = db.get_u8_from_id_tag(id_user, id_tag);
+            db.set_u8_to_word_address(id_user, 0, value + 20);
+        }
+
+        std::thread::sleep(Duration::from_millis(100));
+
+        {
+            // Verrouiller la database partagée pour accéder à sa valeur
+            let mut db = thread2_data.lock().unwrap();
+
+            // Voir s'il y a un notification d'un autre utilisateur
+            if let Some(tag) = db.get_change(id_user, false, false) {
+                println!("User #{id_user} notifié du changement de {tag}");
+            }
+        }
     });
 
     // Attendre que les threads se terminent

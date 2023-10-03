@@ -19,6 +19,8 @@ pub struct IdUsers {
     id_user_seed: IdUser,
 
     /// Historique des modifications de la [`Database`]
+    // TODO Cet historique n'est jamais 'purgé'. On pourrait supprimer tous les éléments qui ont été
+    // notifiés à tous les users... (min hash_notifications.values > 0)
     vec_changes: Vec<(IdUser, WordAddress)>,
 
     /// Hash [`IdUser`] -> premier index dans `vec_changes` qui n'a pas été notifié à ce [`IdUser`],
