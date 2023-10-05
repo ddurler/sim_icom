@@ -3,6 +3,12 @@ use std::sync::{Arc, Mutex};
 mod database;
 use database::{Database, IdTag};
 
+mod tcp_server;
+use tcp_server::server_context;
+
+use std::net::SocketAddr;
+
+
 async fn my_test_process(thread_db: Arc<Mutex<Database>>, option_id_tag: Option<IdTag>) {
     let id_user;
     {
@@ -46,7 +52,7 @@ async fn my_test_process(thread_db: Arc<Mutex<Database>>, option_id_tag: Option<
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialisation de la database
     // let db = Database::from_file("./datas/database_test.csv");
     let mut db: Database = Database::from_file("./datas/database.csv");
@@ -73,9 +79,14 @@ async fn main() {
     let handle_1 = tokio::spawn(async move { my_test_process(thread1_data, None).await });
     let handle_2 = tokio::spawn(async move { my_test_process(thread2_data, Some(id_tag)).await });
 
+    // Serveur MODBUS
+    let socket_addr: SocketAddr = "127.0.0.1:502".parse().unwrap();
+    let handle_3 = tokio::spawn(async move { server_context(socket_addr).await });
+
     // Attendre que les threads se terminent
     handle_1.await.unwrap();
     handle_2.await.unwrap();
+    let _ = handle_3.await.unwrap();
 
     // Accéder à la valeur finale de la zone de données partagée
     let db = shared_db.lock().unwrap();
@@ -84,4 +95,6 @@ async fn main() {
         "Valeur finale : {}",
         db.get_u8_from_word_address(id_user, 0)
     );
+
+    Ok(())
 }
