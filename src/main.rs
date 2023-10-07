@@ -131,7 +131,8 @@ async fn my_test_process(thread_db: Arc<Mutex<Database>>, option_id_tag: Option<
         }
     }
 
-    for _ in 0..300 {  /* Pendant 5 minutes... */
+    for _ in 0..300 {
+        /* Pendant 5 minutes... */
         // Laisse la main...
         tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
