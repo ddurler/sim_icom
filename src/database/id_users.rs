@@ -63,6 +63,18 @@ impl Default for IdUsers {
 }
 
 impl IdUsers {
+    /// Retourne un nouveau [`IdUser`]
+    pub fn get_id_user(&mut self) -> IdUser {
+        // Si le nombre d'utilisateurs différents devient trop grand,
+        // on attribue le même [`IdUser`] à tous les nouveaux...
+        self.id_user_seed = self.id_user_seed.saturating_add(1);
+
+        // Mémorise le 1er offset pour les notifications à suivre
+        let offset = self.vec_changes.len();
+        self.hash_notifications.insert(self.id_user_seed, offset);
+        self.id_user_seed
+    }
+
     /// Indique si le changement annoncé est le même que celui qui vient d'être enregistré
     pub fn is_same_as_last_change(&self, id_user: IdUser, id_tag: IdTag) -> bool {
         if self.vec_changes.is_empty() {
@@ -86,23 +98,58 @@ impl IdUsers {
         self.vec_changes.push(notification);
         self.date_last_change = SystemTime::now();
     }
+
+    /// Indique s'il y a une notification à faire pour un utilisateur
+    /// Possibilité de filtrer les modifications des utilisateurs anonymes ou les modifications
+    /// faite par l'utilisateur demandeur
+    pub fn get_change(
+        &mut self,
+        id_user: IdUser,
+        include_my_changes: bool,
+        include_anonymous_changes: bool,
+    ) -> Option<IdTag> {
+        // Pas d'historique de notification pour les anonymes et les utilisateurs non identifiés
+        if !self.hash_notifications.contains_key(&id_user) {
+            return None;
+        }
+
+        // Dernier offset non notifié à cet utilisateur
+        let offset = match self.hash_notifications.get(&id_user) {
+            Some(offset) => *offset,
+            None => self.vec_changes.len(),
+        };
+
+        // Parcours des offsets de l'historique
+        let mut notification_offset = offset;
+        while self.vec_changes.len() > notification_offset {
+            let notification = &self.vec_changes[notification_offset];
+            // A notifier ?
+            if (include_anonymous_changes || notification.id_user != ID_ANONYMOUS_USER)
+                && (include_my_changes || notification.id_user != id_user)
+            {
+                // Mémorisation du dernier offset non notifié à cet utilisateur
+                self.hash_notifications
+                    .insert(id_user, notification_offset + 1);
+                // Modification de la database à retourner au demandeur
+                return Some(notification.id_tag);
+            }
+            notification_offset += 1;
+        }
+
+        // Rien à notifier au demandeur
+        if notification_offset != offset {
+            // Mémorisation du dernier offset non notifié à cet utilisateur
+            self.hash_notifications.insert(id_user, notification_offset);
+        }
+
+        None
+    }
 }
 
 impl Database {
     /// Retourne un [`IdUser`] pour les opérations de la [`Database`]
-    #[allow(dead_code)]
     pub fn get_id_user(&mut self) -> IdUser {
-        // Si le nombre d'utilisateurs différents devient trop grand,
-        // on attribue le même [`IdUser`] à tous les nouveaux...
-        self.id_users.id_user_seed = self.id_users.id_user_seed.saturating_add(1);
-
-        // Mémorise le 1er offset pour les notifications à suivre
-        let offset = self.id_users.vec_changes.len();
-        self.id_users
-            .hash_notifications
-            .insert(self.id_users.id_user_seed, offset);
-
-        self.id_users.id_user_seed
+        self.id_users.get_id_user()
     }
 
     /// Informe qu'un utilisateur accède à la [`Database`] en ÉCRITURE
@@ -135,48 +182,17 @@ impl Database {
         include_my_changes: bool,
         include_anonymous_changes: bool,
     ) -> Option<Tag> {
-        // Pas d'historique de notification pour les anonymes et les utilisateurs non identifiés
-        if !self.id_users.hash_notifications.contains_key(&id_user) {
-            return None;
-        }
-        // Dernier offset non notifié à cet utilisateur
-        let offset = *self
+        match self
             .id_users
-            .hash_notifications
-            .get(&id_user)
-            .unwrap_or(&self.id_users.vec_changes.len());
-
-        // Parcours des offsets de l'historique
-        let mut notification_offset = offset;
-        while self.id_users.vec_changes.len() > notification_offset {
-            let notification = &self.id_users.vec_changes[notification_offset];
-            // A notifier ?
-            if (include_anonymous_changes || notification.id_user != ID_ANONYMOUS_USER)
-                && (include_my_changes || notification.id_user != id_user)
-            {
-                // Mémorisation du dernier offset non notifié à cet utilisateur
-                self.id_users
-                    .hash_notifications
-                    .insert(id_user, notification_offset + 1);
+            .get_change(id_user, include_my_changes, include_anonymous_changes)
+        {
+            Some(id_tag) => {
                 // Modification de la database à retourner au demandeur
-                let tag = self
-                    .get_mut_tag_from_id_tag(notification.id_tag)
-                    .unwrap()
-                    .clone();
-                return Some(tag);
+                let tag = self.get_mut_tag_from_id_tag(id_tag).unwrap().clone();
+                Some(tag)
             }
-            notification_offset += 1;
+            None => None,
         }
-
-        // Rien à notifier au demandeur
-        if notification_offset != offset {
-            // Mémorisation du dernier offset non notifié à cet utilisateur
-            self.id_users
-                .hash_notifications
-                .insert(id_user, notification_offset);
-        }
-
-        None
     }
 }
 
