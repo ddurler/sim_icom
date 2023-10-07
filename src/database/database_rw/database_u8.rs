@@ -9,9 +9,8 @@ impl Database {
     /// Getter selon [`WordAddress`]
     #[allow(dead_code)]
     pub fn get_u8_from_word_address(&self, id_user: IdUser, word_address: WordAddress) -> u8 {
-        let vec_u8 = self.get_vec_u8_from_word_address(id_user, word_address, 1);
-        let vec_u8: [u8; 1] = vec_u8.try_into().unwrap();
-        u8::from_be_bytes(vec_u8)
+        let vec_u8 = self.get_vec_u8_from_word_address(id_user, word_address, 2);
+        vec_u8[1]
     }
 
     /// Setter selon [`WordAddress`]
@@ -22,7 +21,8 @@ impl Database {
         word_address: WordAddress,
         value: u8,
     ) {
-        let vec_u8 = value.to_be_bytes();
+        let mut vec_u8 = self.get_vec_u8_from_word_address(id_user, word_address, 2);
+        vec_u8[1] = value;
         self.set_vec_u8_to_word_address(id_user, word_address, &vec_u8);
     }
 

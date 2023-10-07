@@ -8,21 +8,24 @@ use super::{Database, IdTag, IdUser, WordAddress};
 impl Database {
     /// Getter selon [`WordAddress`]
     #[allow(dead_code)]
+    #[allow(clippy::cast_sign_loss)]
+    #[allow(clippy::cast_possible_wrap)]
     pub fn get_i8_from_word_address(&self, id_user: IdUser, word_address: WordAddress) -> i8 {
-        let vec_u8 = self.get_vec_u8_from_word_address(id_user, word_address, 1);
-        let vec_u8: [u8; 1] = vec_u8.try_into().unwrap();
-        i8::from_be_bytes(vec_u8)
+        let vec_u8 = self.get_vec_u8_from_word_address(id_user, word_address, 2);
+        vec_u8[1] as i8
     }
 
     /// Setter selon [`WordAddress`]
     #[allow(dead_code)]
+    #[allow(clippy::cast_sign_loss)]
     pub fn set_i8_to_word_address(
         &mut self,
         id_user: IdUser,
         word_address: WordAddress,
         value: i8,
     ) {
-        let vec_u8 = value.to_be_bytes();
+        let mut vec_u8 = self.get_vec_u8_from_word_address(id_user, word_address, 2);
+        vec_u8[1] = value as u8;
         self.set_vec_u8_to_word_address(id_user, word_address, &vec_u8);
     }
 
