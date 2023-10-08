@@ -7,80 +7,68 @@ use tokio_modbus::server::tcp::{accept_tcp_connection, Server};
 mod database;
 use database::Database;
 
+mod watcher;
+use watcher::database_watcher_process;
+
+mod afsec;
+use afsec::{database_afsec_process, DatabaseAfsecComm};
+
 mod server_modbus_tcp;
 use server_modbus_tcp::DatabaseService;
 
-/// Routine d'un thread qui trace les modifications effectuées dans la [`Database`]
-/// En paramètre, le temps de cycle entre chaque trace (en millisecondes)
-/// Et un booléen pour indiquer si on trace également les modifications 'anonymes'
-async fn database_watcher(
-    thread_db: Arc<Mutex<Database>>,
-    cycle_in_msecs: u64,
-    include_anonymous_changes: bool,
-) {
-    println!("WATCHER: Starting...");
+/// Aide pour l'utilisateur
+fn usage_help() -> &'static str {
+    "
+Simulateur de ICOM (c)ALMA - 2023
 
-    let id_user;
-    {
-        // Verrouiller la database partagée pour accéder à sa valeur
-        let mut db = thread_db.lock().unwrap();
+Cet outil simule le fonctionnement de la carte ICOM pour l'AFSEC+.
 
-        // Obtient un id_user pour les opérations
-        id_user = db.get_id_user("Watcher", true);
-    }
+Usage:
+    sim_icom <com>      Où <com> est le port série en communication avec l'AFSEC+
+                        (Le port série 'fake' inhibe cette communication)
 
-    loop {
-        loop {
-            // Verrouiller la database partagée pour accéder à sa valeur
-            let mut db = thread_db.lock().unwrap();
+Le répertoire courant doit contenir un fichier 'database.csv' qui contient les informations
+de la database de l'ICOM (fichier dont le contenu est identique au fichier database*.csv dans
+la µSD de l'ICOM).
 
-            // Voir s'il y a un notification d'un autre utilisateur
-            if let Some(notification_change) =
-                db.get_change(id_user, false, include_anonymous_changes)
-            {
-                match db.get_tag_from_id_tag(notification_change.id_tag) {
-                    Some(tag) => {
-                        println!(
-                            "WATCHER: {} = {} ({})",
-                            tag,
-                            db.get_t_value_from_tag(id_user, tag),
-                            db.get_id_user_name(notification_change.id_user),
-                        );
-                    }
-                    None => {
-                        println!(
-                            "WATCHER: Got id_tag = {} with no tag ({}) ???",
-                            notification_change.id_tag,
-                            db.get_id_user_name(notification_change.id_user),
-                        );
-                    }
-                }
-            } else {
-                break;
-            }
-        }
-        // Laisse la main...
-        tokio::time::sleep(tokio::time::Duration::from_millis(cycle_in_msecs)).await;
-    }
+L'outil est également un serveur MODBUS/TCP pour interagir avec le contenu de la database.
+    "
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialisation de la database
-    let mut db: Database = Database::from_file("./datas/database.csv");
+    // Au moins un argument avec le port série
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() < 2 {
+        println!("{}", usage_help());
+        return Ok(());
+    }
 
-    // Extrait un id_user pour le serveur
-    let id_user = db.get_id_user("Server MODBUS/TCP", false);
+    let port_name = args[1].clone();
+
+    // Initialisation de la database
+    let mut db: Database = Database::from_file("database.csv");
+
+    // Extrait un id_user pour le serveur MODBUS/TCP
+    let id_user_tcp_server = db.get_id_user("Server MODBUS/TCP", false);
 
     // Créer la database partagée mutable
     let shared_db = Arc::new(Mutex::new(db));
 
-    // Cloner la référence à la database partagée pour chaque thread
+    // Cloner la référence à la database partagée le `watcher`
     let db_watcher = Arc::clone(&shared_db);
 
-    // Créer un watcher
+    // Créer le watcher
     let handle_watcher =
-        tokio::spawn(async move { database_watcher(db_watcher, 1000, true).await });
+        tokio::spawn(async move { database_watcher_process(db_watcher, 1000, true).await });
+
+    // Cloner la référence à la database partagée pour la communication avec l'AFSEC+
+    let db_afsec = Arc::clone(&shared_db);
+
+    // Process communication avec l'AFSEC+ sur le port série
+    let handle_afsec = tokio::spawn(async move {
+        database_afsec_process(&mut DatabaseAfsecComm::new(db_afsec, port_name)).await;
+    });
 
     // Serveur MODBUS
     // Linux n'autorise pas les ports < 1024
@@ -94,7 +82,7 @@ async fn main() -> anyhow::Result<()> {
     let server = Server::new(listener);
     let new_service = |_socket_addr| {
         let thread_db = Arc::clone(&shared_db);
-        Ok(Some(DatabaseService::new(thread_db, id_user)))
+        Ok(Some(DatabaseService::new(thread_db, id_user_tcp_server)))
     };
     let on_connected = |stream, socket_addr| async move {
         accept_tcp_connection(stream, socket_addr, new_service)
@@ -102,10 +90,12 @@ async fn main() -> anyhow::Result<()> {
     let on_process_error = |err| {
         eprintln!("{err}");
     };
+    println!("[Note: Entrer ctrl+C pour stopper l'application]");
     server.serve(&on_connected, on_process_error).await?;
 
     // Attendre que les threads se terminent
     handle_watcher.await.unwrap();
+    handle_afsec.await.unwrap();
 
     Ok(())
 }
