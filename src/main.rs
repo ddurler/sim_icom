@@ -83,7 +83,12 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move { database_watcher(db_watcher, 1000, true).await });
 
     // Serveur MODBUS
-    let socket_addr: SocketAddr = "127.0.0.1:502".parse().unwrap();
+    // Linux n'autorise pas les ports < 1024
+    #[cfg(target_os = "linux")]
+    let socket_addr: SocketAddr = "0.0.0.0:1502".parse().unwrap();
+    #[cfg(not(target_os = "linux"))]
+    let socket_addr: SocketAddr = "0.0.0.0:502".parse().unwrap();
+
     println!("Starting up server on {socket_addr}");
     let listener = TcpListener::bind(socket_addr).await?;
     let server = Server::new(listener);
