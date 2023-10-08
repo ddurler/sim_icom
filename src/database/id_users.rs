@@ -58,8 +58,6 @@ pub struct IdUsers {
     vec_users: Vec<User>,
 
     /// Historique des modifications de la [`Database`]
-    // TODO Cet historique n'est jamais 'purgé'. On pourrait supprimer tous les éléments qui ont été
-    // notifiés à tous les users... (min hash_notifications.values > 0)
     vec_changes: Vec<NotificationChange>,
 
     // Si la modification est faite en 'découpant' l'écriture dans un même [`Tag`] (ce qui arrive lorsque
@@ -113,10 +111,57 @@ impl IdUsers {
         }
     }
 
+    /// Purge les nb premiers changements dans l'historique des changements
+    fn do_purge_changes(&mut self, nb: usize) {
+        // Supprime les nb premiers éléments de vec_changes
+        for _ in 0..nb {
+            self.vec_changes.remove(0);
+        }
+
+        // Remet à jour le `next_notification_index` pour tous les utilisateurs
+        for user in &mut self.vec_users {
+            user.next_notification_index = if user.next_notification_index >= nb {
+                user.next_notification_index - nb
+            } else {
+                0
+            };
+        }
+    }
+
+    /// Purge l'historique des changements lorsque tous les utilisateurs ont été notifiés
+    fn purge_changes(&mut self) {
+        if self.vec_changes.is_empty() {
+            return;
+        }
+
+        // Recherche l'index minimum qui reste à notifier
+        let mut min_changes_index = self.vec_changes.len();
+        for user in &self.vec_users {
+            if user.use_notification && user.next_notification_index < min_changes_index {
+                min_changes_index = user.next_notification_index;
+            }
+        }
+
+        if min_changes_index > 0 {
+            // Ici, on peut supprimer de l'historique tous les changements déjà notifier aux intéressés
+            self.do_purge_changes(min_changes_index);
+        }
+    }
+
+    /// Indique si au moins un utilisateur utilise le système de notification
+    fn is_some_users_use_notification(&self) -> bool {
+        for user in &self.vec_users {
+            if user.use_notification {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Indique si le changement annoncé est le même que celui qui vient d'être enregistré
     /// C'est la temporisation de filtrage `DURATION_CHANGE_FILTER_SECS` entre 2 changements
     /// consécutifs qui filtre les changements
-    pub fn is_same_as_last_change(&self, notification_change: &NotificationChange) -> bool {
+    fn is_same_as_last_change(&self, notification_change: &NotificationChange) -> bool {
         if self.vec_changes.is_empty() {
             return false;
         }
@@ -135,9 +180,19 @@ impl IdUsers {
     }
 
     /// Enregistre un nouveau changement
+    /// Rien n'est enregistré si la modification est identique à la précédente dans une temporisation
+    /// de filtrage ou si aucun utilisateur n'est intéressé par un historique
     pub fn add_change(&mut self, notification_change: &NotificationChange) {
-        self.vec_changes.push(notification_change.clone());
-        self.date_last_change = SystemTime::now();
+        if !self.is_same_as_last_change(notification_change)
+            && self.is_some_users_use_notification()
+        {
+            // Enregistrement du changement
+            self.vec_changes.push(notification_change.clone());
+            self.date_last_change = SystemTime::now();
+
+            // On en profite pour purger la table des changements déjà notifiés
+            self.purge_changes();
+        }
     }
 
     /// Indique s'il y a une notification à faire pour un utilisateur
@@ -210,9 +265,7 @@ impl Database {
             id_user,
             id_tag: tag.id_tag,
         };
-        if !self.id_users.is_same_as_last_change(&notification_change) {
-            self.id_users.add_change(&notification_change);
-        }
+        self.id_users.add_change(&notification_change);
     }
 
     /// Répond à un utilisateur pour lui signaler les mises à jour de la [`Database`]
@@ -249,11 +302,13 @@ mod tests {
     fn test_id_users() {
         let mut db = Database::default();
 
-        let id_user1 = db.get_id_user("user1", false);
-        assert!(id_user1 != ID_ANONYMOUS_USER);
+        let id_user_1 = db.get_id_user("user1", false);
+        assert!(id_user_1 != ID_ANONYMOUS_USER);
+        assert_eq!(db.get_id_user_name(id_user_1), "user1");
 
         let id_user_2 = db.get_id_user("user2", false);
-        assert!(id_user1 != id_user_2);
+        assert!(id_user_1 != id_user_2);
+        assert_eq!(db.get_id_user_name(id_user_2), "user2");
     }
 
     #[test]
@@ -507,5 +562,105 @@ mod tests {
 
         // Plus de notification pour l'utilisateur identifié
         assert!(db.get_change(id_user, true, true).is_none());
+    }
+
+    #[test]
+    fn test_purge_changes() {
+        let mut db = Database::default();
+
+        // Création d'un tag 1
+        let tag_1 = Tag {
+            word_address: 0x0010,
+            id_tag: IdTag::new(1, 1, [0, 0, 0]),
+            t_format: TFormat::U16,
+            ..Default::default()
+        };
+        db.add_tag(&tag_1);
+
+        // Création d'un tag 2
+        let tag_2 = Tag {
+            word_address: 0x0020,
+            id_tag: IdTag::new(2, 2, [0, 0, 0]),
+            t_format: TFormat::U16,
+            ..Default::default()
+        };
+        db.add_tag(&tag_2);
+
+        // Création d'un user
+        let id_user = db.get_id_user("user", true);
+
+        // Mise à jour de la database par user
+        db.set_u16_to_id_tag(id_user, tag_1.id_tag, 1);
+        db.set_u16_to_id_tag(id_user, tag_2.id_tag, 2);
+
+        // Mesure de la taille de l'historique des changements avant les notifications
+        // Ici 2 changements dans l'historique
+        let start_vec_changes_len = db.id_users.vec_changes.len();
+
+        // L'utilisateur récupère toutes les notifications
+        loop {
+            if db.get_change(id_user, true, true).is_none() {
+                break;
+            }
+        }
+
+        // La purge se fait lorsqu'un nouveau changement est fait
+        db.set_u16_to_id_tag(id_user, tag_1.id_tag, 2);
+
+        // La taille de l'historique des changements doit avoir diminué (plus que 1)
+        assert!(db.id_users.vec_changes.len() < start_vec_changes_len);
+    }
+
+    #[test]
+    fn test_multi_users_purge_changes() {
+        let mut db = Database::default();
+
+        // Création d'un tag 1
+        let tag_1 = Tag {
+            word_address: 0x0010,
+            id_tag: IdTag::new(1, 1, [0, 0, 0]),
+            t_format: TFormat::U16,
+            ..Default::default()
+        };
+        db.add_tag(&tag_1);
+
+        // Création d'un tag 2
+        let tag_2 = Tag {
+            word_address: 0x0020,
+            id_tag: IdTag::new(2, 2, [0, 0, 0]),
+            t_format: TFormat::U16,
+            ..Default::default()
+        };
+        db.add_tag(&tag_2);
+
+        // Création d'un user_1
+        let id_user_1 = db.get_id_user("user1", true);
+
+        // Création d'un user_2
+        let id_user_2 = db.get_id_user("user2", true);
+
+        // Mise à jour de la database par user1
+        db.set_u16_to_id_tag(id_user_1, tag_1.id_tag, 1);
+        db.set_u16_to_id_tag(id_user_2, tag_2.id_tag, 2);
+        db.set_u16_to_id_tag(id_user_1, tag_1.id_tag, 3);
+        db.set_u16_to_id_tag(id_user_2, tag_2.id_tag, 4);
+
+        // Mesure de la taille de l'historique des changements avant les notifications
+        let start_vec_changes_len = db.id_users.vec_changes.len();
+
+        // User1 et User2 récupèrent toutes les notifications
+        loop {
+            if db.get_change(id_user_1, true, true).is_none()
+                && db.get_change(id_user_2, true, true).is_none()
+            {
+                break;
+            }
+        }
+
+        // La purge se fait lorsqu'un nouveau changement est fait
+        db.set_u16_to_id_tag(id_user_1, tag_1.id_tag, 5);
+
+        // La taille de l'historique des changements doit avoir diminué (plus que 1)
+        assert!(db.id_users.vec_changes.len() < start_vec_changes_len);
     }
 }

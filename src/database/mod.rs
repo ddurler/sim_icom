@@ -107,7 +107,7 @@ impl fmt::Display for Database {
 }
 
 impl Database {
-    /// Construction de la [`Database`] depuis le contenu d'un fichier datafile*.csv
+    /// Construction de la [`Database`] depuis le contenu d'un fichier database*.csv
     /// (fichier .csv standard de production)
     /// Cette fonction autorise du contenu non UTF-8 dans le fichier (souvent le cas pour les unités)
     /// Les champs retenus sont ceux de la structure [`Tag`]
