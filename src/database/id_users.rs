@@ -5,7 +5,6 @@
 //!
 //! Ici, l'utilisateur doit 'poller' pour s'enquérir des dernières modifications dans la [`Database`].
 
-use std::collections::HashMap;
 use std::time::SystemTime;
 
 use super::IdTag;
@@ -13,34 +12,55 @@ use super::IdTag;
 #[cfg(test)]
 use super::TFormat;
 
-use super::{Database, IdUser, Tag, ID_ANONYMOUS_USER};
+use super::{Database, Tag};
+
+/// Identificateur d'un utilisateur de la [`Database`]
+/// Il s'agit d'un numéro pour discriminer les utilisateurs et de proposer un historique dédié.
+pub type IdUser = usize;
+
+/// Utilisateur par défaut
+/// L'`[``IdUser``] = 0` est un utilisateur anonyme
+pub const ID_ANONYMOUS_USER: IdUser = 0; // Doit être le 0 dans la table des utilisateurs
+
+/// Nom d'un utilisateur non identifié
+const ANONYMOUS_USER_NAME: &str = "Anonymous user";
 
 /// Durée pendant laquelle on filtre les modifications qui semblent identiques
 const DURATION_CHANGE_FILTER_SECS: f32 = 1.0;
 
-/// Structure pour mémoriser un changement dans la database
-#[derive(Clone, Debug, Default, Hash)]
-pub struct Notification {
-    /// Utilisateur qui a réalisé le changement
-    id_user: IdUser,
+/// Structure pour mémoriser les informations d'un utilisateur
+#[derive(Debug, Default)]
+pub struct User {
+    /// Nom de l'utilisateur
+    name: String,
 
-    /// [`IdTag`] qui a été modifié
-    id_tag: IdTag,
+    /// Booléen à true si utilisateur intéressé par le système de notification
+    use_notification: bool,
+
+    /// Premier index dans `vec_changes` qui n'a pas été notifié à cet utilisateur
+    next_notification_index: usize,
+}
+
+/// Structure pour mémoriser un changement dans la database
+#[derive(Clone, Debug, Default)]
+pub struct NotificationChange {
+    /// Utilisateur qui a réalisé le changement
+    pub id_user: IdUser,
+
+    /// [`IdTag`] modifié
+    pub id_tag: IdTag,
 }
 
 /// Structure pour les suivis des différents [`IdUser`] identifiés
 #[derive(Debug)]
 pub struct IdUsers {
-    /// Générateur d'[`IdUser`]
-    id_user_seed: IdUser,
+    /// Liste des utilisateurs identifiés
+    vec_users: Vec<User>,
 
     /// Historique des modifications de la [`Database`]
     // TODO Cet historique n'est jamais 'purgé'. On pourrait supprimer tous les éléments qui ont été
     // notifiés à tous les users... (min hash_notifications.values > 0)
-    vec_changes: Vec<Notification>,
-
-    /// Hash [`IdUser`] -> premier index dans `vec_changes` qui n'a pas été notifié à ce [`IdUser`],
-    hash_notifications: HashMap<IdUser, usize>,
+    vec_changes: Vec<NotificationChange>,
 
     // Si la modification est faite en 'découpant' l'écriture dans un même [`Tag`] (ce qui arrive lorsque
     // un client MODBUS écrit des `u16` consécutifs) alors autant de notification sont enregistrées.
@@ -53,10 +73,16 @@ pub struct IdUsers {
 
 impl Default for IdUsers {
     fn default() -> Self {
+        // L'utilisateur anonyme est en 0
+        let anonymous_user = User {
+            name: ANONYMOUS_USER_NAME.to_string(),
+            use_notification: false,
+            next_notification_index: 0,
+        };
+        let vec_users = vec![anonymous_user];
         Self {
-            id_user_seed: IdUser::default(),
+            vec_users,
             vec_changes: vec![],
-            hash_notifications: HashMap::new(),
             date_last_change: SystemTime::now(),
         }
     }
@@ -64,24 +90,40 @@ impl Default for IdUsers {
 
 impl IdUsers {
     /// Retourne un nouveau [`IdUser`]
-    pub fn get_id_user(&mut self) -> IdUser {
-        // Si le nombre d'utilisateurs différents devient trop grand,
-        // on attribue le même [`IdUser`] à tous les nouveaux...
-        self.id_user_seed = self.id_user_seed.saturating_add(1);
+    /// Un utilisateur s'identifie avec un nom et indique s'il souhaite pouvoir être notifié
+    /// des changements dans la database par `get_change`
+    pub fn get_id_user(&mut self, name: &str, use_notification: bool) -> IdUser {
+        let new_id_user = self.vec_users.len();
+        let next_notification_index = self.vec_changes.len();
+        let new_user = User {
+            name: name.to_string(),
+            use_notification,
+            next_notification_index,
+        };
+        self.vec_users.push(new_user);
+        new_id_user
+    }
 
-        // Mémorise le 1er offset pour les notifications à suivre
-        let offset = self.vec_changes.len();
-        self.hash_notifications.insert(self.id_user_seed, offset);
-        self.id_user_seed
+    /// Retourne le nom d'un [`IdUser`]
+    pub fn get_id_user_name(&self, id_user: IdUser) -> Option<String> {
+        if id_user <= self.vec_users.len() {
+            Some(self.vec_users[id_user].name.clone())
+        } else {
+            None
+        }
     }
 
     /// Indique si le changement annoncé est le même que celui qui vient d'être enregistré
-    pub fn is_same_as_last_change(&self, id_user: IdUser, id_tag: IdTag) -> bool {
+    /// C'est la temporisation de filtrage `DURATION_CHANGE_FILTER_SECS` entre 2 changements
+    /// consécutifs qui filtre les changements
+    pub fn is_same_as_last_change(&self, notification_change: &NotificationChange) -> bool {
         if self.vec_changes.is_empty() {
             return false;
         }
         let last_notification = &self.vec_changes[self.vec_changes.len() - 1];
-        if last_notification.id_user == id_user && last_notification.id_tag == id_tag {
+        if last_notification.id_user == notification_change.id_user
+            && last_notification.id_tag == notification_change.id_tag
+        {
             let current_date = SystemTime::now();
             if let Ok(elapsed) = current_date.duration_since(self.date_last_change) {
                 if elapsed.as_secs_f32() < DURATION_CHANGE_FILTER_SECS {
@@ -93,9 +135,8 @@ impl IdUsers {
     }
 
     /// Enregistre un nouveau changement
-    pub fn add_change(&mut self, id_user: IdUser, id_tag: IdTag) {
-        let notification = Notification { id_user, id_tag };
-        self.vec_changes.push(notification);
+    pub fn add_change(&mut self, notification_change: &NotificationChange) {
+        self.vec_changes.push(notification_change.clone());
         self.date_last_change = SystemTime::now();
     }
 
@@ -107,17 +148,17 @@ impl IdUsers {
         id_user: IdUser,
         include_my_changes: bool,
         include_anonymous_changes: bool,
-    ) -> Option<IdTag> {
-        // Pas d'historique de notification pour les anonymes et les utilisateurs non identifiés
-        if !self.hash_notifications.contains_key(&id_user) {
-            return None;
+    ) -> Option<NotificationChange> {
+        if id_user >= self.vec_users.len() {
+            return None; // Utilisateur non identifié
+        }
+
+        if !self.vec_users[id_user].use_notification {
+            return None; // Utilisateur qui a indiqué ne pas vouloir utiliser cette fonction
         }
 
         // Dernier offset non notifié à cet utilisateur
-        let offset = match self.hash_notifications.get(&id_user) {
-            Some(offset) => *offset,
-            None => self.vec_changes.len(),
-        };
+        let offset = self.vec_users[id_user].next_notification_index;
 
         // Parcours des offsets de l'historique
         let mut notification_offset = offset;
@@ -128,10 +169,9 @@ impl IdUsers {
                 && (include_my_changes || notification.id_user != id_user)
             {
                 // Mémorisation du dernier offset non notifié à cet utilisateur
-                self.hash_notifications
-                    .insert(id_user, notification_offset + 1);
+                self.vec_users[id_user].next_notification_index = notification_offset + 1;
                 // Modification de la database à retourner au demandeur
-                return Some(notification.id_tag);
+                return Some(notification.clone());
             }
             notification_offset += 1;
         }
@@ -139,7 +179,7 @@ impl IdUsers {
         // Rien à notifier au demandeur
         if notification_offset != offset {
             // Mémorisation du dernier offset non notifié à cet utilisateur
-            self.hash_notifications.insert(id_user, notification_offset);
+            self.vec_users[id_user].next_notification_index = notification_offset;
         }
 
         None
@@ -148,16 +188,30 @@ impl IdUsers {
 
 impl Database {
     /// Retourne un [`IdUser`] pour les opérations de la [`Database`]
-    pub fn get_id_user(&mut self) -> IdUser {
-        self.id_users.get_id_user()
+    /// L'utilisateur doit donner un 'nom' et indiquer s'il est intéressé par le système de notification
+    pub fn get_id_user(&mut self, name: &str, use_notification: bool) -> IdUser {
+        self.id_users.get_id_user(name, use_notification)
+    }
+
+    /// Retourne le nom d'un [`IdUser`].
+    /// Si [`IdUser`] n'est pas identifié, retourne `ANONYMOUS_USER_NAME`
+    pub fn get_id_user_name(&self, id_user: IdUser) -> String {
+        match self.id_users.get_id_user_name(id_user) {
+            Some(name) => name,
+            None => ANONYMOUS_USER_NAME.to_string(),
+        }
     }
 
     /// Informe qu'un utilisateur accède à la [`Database`] en ÉCRITURE
     /// (Ici database est mutable)
     pub fn user_write_tag(&mut self, id_user: IdUser, tag: &Tag) {
         // println!("{tag} written by user #{id_user}");
-        if !self.id_users.is_same_as_last_change(id_user, tag.id_tag) {
-            self.id_users.add_change(id_user, tag.id_tag);
+        let notification_change = NotificationChange {
+            id_user,
+            id_tag: tag.id_tag,
+        };
+        if !self.id_users.is_same_as_last_change(&notification_change) {
+            self.id_users.add_change(&notification_change);
         }
     }
 
@@ -181,18 +235,9 @@ impl Database {
         id_user: IdUser,
         include_my_changes: bool,
         include_anonymous_changes: bool,
-    ) -> Option<Tag> {
-        match self
-            .id_users
+    ) -> Option<NotificationChange> {
+        self.id_users
             .get_change(id_user, include_my_changes, include_anonymous_changes)
-        {
-            Some(id_tag) => {
-                // Modification de la database à retourner au demandeur
-                let tag = self.get_mut_tag_from_id_tag(id_tag).unwrap().clone();
-                Some(tag)
-            }
-            None => None,
-        }
     }
 }
 
@@ -204,10 +249,10 @@ mod tests {
     fn test_id_users() {
         let mut db = Database::default();
 
-        let id_user1 = db.get_id_user();
+        let id_user1 = db.get_id_user("user1", false);
         assert!(id_user1 != ID_ANONYMOUS_USER);
 
-        let id_user_2 = db.get_id_user();
+        let id_user_2 = db.get_id_user("user2", false);
         assert!(id_user1 != id_user_2);
     }
 
@@ -234,7 +279,7 @@ mod tests {
         db.add_tag(&tag_2);
 
         // Création d'un user
-        let id_user = db.get_id_user();
+        let id_user = db.get_id_user("user", true);
 
         // Pas d'historique pour cet utilisateur
         assert!(db.get_change(id_user, true, true).is_none());
@@ -256,9 +301,14 @@ mod tests {
 
         // Cette modification est notifiée à user s'il s'intéresse aux modifications faites
         // par les utilisateurs anonymes
-        let option_tag = db.get_change(id_user, true, true);
-        assert!(option_tag.is_some());
-        assert_eq!(option_tag.unwrap().word_address, tag_2.word_address);
+        let option_notification_change = db.get_change(id_user, true, true);
+        assert!(option_notification_change.is_some());
+        match db.get_tag_from_id_tag(option_notification_change.unwrap().id_tag) {
+            Some(tag) => {
+                assert_eq!(tag.word_address, tag_2.word_address);
+            }
+            None => panic!("notification_change sans tag"),
+        }
 
         // Puis plus de notification à suivre
         assert!(db.get_change(id_user, true, true).is_none());
@@ -287,7 +337,7 @@ mod tests {
         db.add_tag(&tag_2);
 
         // Création d'un user
-        let id_user = db.get_id_user();
+        let id_user = db.get_id_user("user", true);
 
         // Mise à jour de la database par user
         db.set_u16_to_id_tag(id_user, tag_1.id_tag, 1);
@@ -304,9 +354,14 @@ mod tests {
         db.set_u16_to_id_tag(id_user, tag_2.id_tag, 2);
 
         // Cette modification est notifiée à user s'il s'intéresse à ses propres modifications
-        let option_tag = db.get_change(id_user, true, true);
-        assert!(option_tag.is_some());
-        assert_eq!(option_tag.unwrap().word_address, tag_2.word_address);
+        let option_notification_change = db.get_change(id_user, true, true);
+        assert!(option_notification_change.is_some());
+        match db.get_tag_from_id_tag(option_notification_change.unwrap().id_tag) {
+            Some(tag) => {
+                assert_eq!(tag.word_address, tag_2.word_address);
+            }
+            None => panic!("notification_change sans tag"),
+        }
     }
 
     #[test]
@@ -332,10 +387,10 @@ mod tests {
         db.add_tag(&tag_2);
 
         // Création d'un user_1
-        let id_user_1 = db.get_id_user();
+        let id_user_1 = db.get_id_user("user1", true);
 
         // Création d'un user_2
-        let id_user_2 = db.get_id_user();
+        let id_user_2 = db.get_id_user("user2", true);
 
         // Mise à jour de la database par user_1
         db.set_u16_to_id_tag(id_user_1, tag_1.id_tag, 1);
@@ -344,14 +399,16 @@ mod tests {
         db.set_u16_to_id_tag(id_user_2, tag_2.id_tag, 2);
 
         // User_1 est notifié de la modif de user_2
-        let option_tag = db.get_change(id_user_1, false, true);
-        assert!(option_tag.is_some());
-        assert_eq!(option_tag.unwrap().word_address, tag_2.word_address);
+        let option_notification_change = db.get_change(id_user_1, false, true);
+        assert!(option_notification_change.is_some());
+        let tag = db.get_tag_from_id_tag(option_notification_change.unwrap().id_tag);
+        assert_eq!(tag.unwrap().word_address, tag_2.word_address);
 
         // User_2 est notifié de la modif de user_1
-        let option_tag = db.get_change(id_user_2, false, true);
-        assert!(option_tag.is_some());
-        assert_eq!(option_tag.unwrap().word_address, tag_1.word_address);
+        let option_notification_change = db.get_change(id_user_2, false, true);
+        assert!(option_notification_change.is_some());
+        let tag = db.get_tag_from_id_tag(option_notification_change.unwrap().id_tag);
+        assert_eq!(tag.unwrap().word_address, tag_1.word_address);
 
         // Pas d'autre notification pour user_2
         assert!(db.get_change(id_user_1, false, true).is_none());
@@ -374,7 +431,7 @@ mod tests {
         db.add_tag(&tag);
 
         // Création d'un user
-        let id_user = db.get_id_user();
+        let id_user = db.get_id_user("user", true);
 
         // Mise à jour de la database par user
         db.set_u16_to_id_tag(id_user, tag.id_tag, 1);
@@ -426,7 +483,7 @@ mod tests {
         db.add_tag(&tag_2);
 
         // Création d'un user
-        let id_user = db.get_id_user();
+        let id_user = db.get_id_user("user", true);
 
         // Pas de modification initialement
         assert!(db.get_change(id_user, true, true).is_none());

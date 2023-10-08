@@ -53,15 +53,7 @@ pub use tag::Tag;
 mod database_rw;
 
 mod id_users;
-use id_users::IdUsers;
-
-/// Identificateur d'un utilisateur de la [`Database`]
-/// Il s'agit d'un numéro `u16` pour discriminer les utilisateurs et de proposer un historique dédié.
-pub type IdUser = u16;
-
-/// Utilisateur par défaut
-/// L'`[``IdUser``] = 0` est un utilisateur anonyme
-pub const ID_ANONYMOUS_USER: IdUser = 0;
+pub use id_users::{IdUser, IdUsers, NotificationChange, ID_ANONYMOUS_USER};
 
 /// Adresse MODBUS pour accéder la [`Database`]
 /// Il s'agit d'une valeur entière `u16`.

@@ -26,7 +26,7 @@ async fn database_watcher(
         let mut db = thread_db.lock().unwrap();
 
         // Obtient un id_user pour les opérations
-        id_user = db.get_id_user();
+        id_user = db.get_id_user("Watcher", true);
     }
 
     loop {
@@ -35,12 +35,26 @@ async fn database_watcher(
             let mut db = thread_db.lock().unwrap();
 
             // Voir s'il y a un notification d'un autre utilisateur
-            if let Some(tag) = db.get_change(id_user, false, include_anonymous_changes) {
-                println!(
-                    "WATCHER: {} = {}",
-                    tag,
-                    db.get_t_value_from_tag(id_user, &tag)
-                );
+            if let Some(notification_change) =
+                db.get_change(id_user, false, include_anonymous_changes)
+            {
+                match db.get_tag_from_id_tag(notification_change.id_tag) {
+                    Some(tag) => {
+                        println!(
+                            "WATCHER: {} = {} ({})",
+                            tag,
+                            db.get_t_value_from_tag(id_user, tag),
+                            db.get_id_user_name(notification_change.id_user),
+                        );
+                    }
+                    None => {
+                        println!(
+                            "WATCHER: Got id_tag = {} with no tag ({}) ???",
+                            notification_change.id_tag,
+                            db.get_id_user_name(notification_change.id_user),
+                        );
+                    }
+                }
             } else {
                 break;
             }
@@ -56,7 +70,7 @@ async fn main() -> anyhow::Result<()> {
     let mut db: Database = Database::from_file("./datas/database.csv");
 
     // Extrait un id_user pour le serveur
-    let id_user = db.get_id_user();
+    let id_user = db.get_id_user("Server MODBUS/TCP", false);
 
     // Créer la database partagée mutable
     let shared_db = Arc::new(Mutex::new(db));
