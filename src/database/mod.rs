@@ -36,11 +36,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::Read;
 
-mod t_format;
-pub use t_format::TFormat;
-
-mod t_value;
-pub use t_value::TValue;
+use crate::t_data::{TFormat, TValue};
 
 mod database_csv;
 

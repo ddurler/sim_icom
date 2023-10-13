@@ -4,6 +4,8 @@ use std::sync::{Arc, Mutex};
 use tokio::net::TcpListener;
 use tokio_modbus::server::tcp::{accept_tcp_connection, Server};
 
+mod t_data;
+
 mod database;
 use database::Database;
 

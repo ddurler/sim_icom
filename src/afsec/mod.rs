@@ -6,6 +6,8 @@ use tokio_serial::SerialPortBuilderExt;
 
 use crate::database::{Database, IdUser, ID_ANONYMOUS_USER};
 
+mod tlv_frame;
+
 /// Wrapper de [`Database`] pour la communication série avec l'AFSEC
 pub struct DatabaseAfsecComm {
     thread_db: Arc<Mutex<Database>>,

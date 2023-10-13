@@ -14,6 +14,8 @@
 //! 0x68 = f64
 //! 0x81 à FF = String(1-127)
 
+use std::fmt;
+
 /// Énumération des formats reconnus
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TFormat {
@@ -33,6 +35,26 @@ pub enum TFormat {
     String(usize),
 }
 
+impl fmt::Display for TFormat {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TFormat::Unknown => write!(f, "Inconnu"),
+            TFormat::Bool => write!(f, "Bool"),
+            TFormat::U8 => write!(f, "U8"),
+            TFormat::I8 => write!(f, "I8"),
+            TFormat::U16 => write!(f, "U16"),
+            TFormat::I16 => write!(f, "I16"),
+            TFormat::U32 => write!(f, "U32"),
+            TFormat::I32 => write!(f, "I32"),
+            TFormat::U64 => write!(f, "U64"),
+            TFormat::I64 => write!(f, "I64"),
+            TFormat::F32 => write!(f, "F32"),
+            TFormat::F64 => write!(f, "F64"),
+            TFormat::String(width) => write!(f, "String({width})"),
+        }
+    }
+}
+
 impl From<u8> for TFormat {
     fn from(value: u8) -> Self {
         match value {
@@ -47,7 +69,7 @@ impl From<u8> for TFormat {
             0x48 => TFormat::I64,
             0x64 => TFormat::F32,
             0x68 => TFormat::F64,
-            n @ 0x81..=0xFF => TFormat::String((n - 0x80) as usize),
+            n @ 0x80..=0xFF => TFormat::String((n - 0x80) as usize),
             _ => TFormat::Unknown,
         }
     }
@@ -69,7 +91,7 @@ impl From<TFormat> for u8 {
             TFormat::F32 => 0x64,
             TFormat::F64 => 0x68,
             TFormat::String(n) => {
-                if (1..=127).contains(&n) {
+                if (0..=127).contains(&n) {
                     0x80 + u8::try_from(n).unwrap()
                 } else {
                     0x00

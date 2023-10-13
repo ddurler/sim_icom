@@ -2,6 +2,8 @@
 
 use std::fmt;
 
+use super::TFormat;
+
 /// Format et conteneur d'une valeur atomique
 #[derive(Clone, Debug)]
 pub enum TValue {
@@ -23,6 +25,25 @@ pub enum TValue {
 impl fmt::Display for TValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", String::from(self))
+    }
+}
+
+impl From<&TValue> for TFormat {
+    fn from(value: &TValue) -> Self {
+        match value {
+            TValue::Bool(_) => TFormat::Bool,
+            TValue::U8(_) => TFormat::U8,
+            TValue::I8(_) => TFormat::I8,
+            TValue::U16(_) => TFormat::U16,
+            TValue::I16(_) => TFormat::I16,
+            TValue::U32(_) => TFormat::U32,
+            TValue::I32(_) => TFormat::I32,
+            TValue::U64(_) => TFormat::U64,
+            TValue::I64(_) => TFormat::I64,
+            TValue::F32(_) => TFormat::F32,
+            TValue::F64(_) => TFormat::F64,
+            TValue::String(width, _) => TFormat::String(*width),
+        }
     }
 }
 
@@ -260,6 +281,26 @@ impl TValue {
 mod tests {
     use super::*;
     use assert_float_eq::*;
+
+    #[test]
+    fn test_extract_t_format() {
+        for (t_value, t_format) in [
+            (TValue::Bool(true), TFormat::Bool),
+            (TValue::U8(100), TFormat::U8),
+            (TValue::I8(-100), TFormat::I8),
+            (TValue::U16(10000), TFormat::U16),
+            (TValue::I16(-10000), TFormat::I16),
+            (TValue::U32(1_000_000), TFormat::U32),
+            (TValue::I32(-1_000_000), TFormat::I32),
+            (TValue::U64(1_000_000), TFormat::U64),
+            (TValue::I64(-1_000_000), TFormat::I64),
+            (TValue::F32(-1.23), TFormat::F32),
+            (TValue::F64(-1.23), TFormat::F64),
+            (TValue::String(3, "ABC".to_string()), TFormat::String(3)),
+        ] {
+            assert_eq!(TFormat::from(&t_value), t_format);
+        }
+    }
 
     #[test]
     fn test_bool_true_from() {
