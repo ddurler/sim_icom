@@ -25,15 +25,23 @@
 //! pour décoder le contenu et encoder la réponse
 //!
 //! Enfin, ce module propose les primitives nécessaires pour encoder la réponse élaborée en créant
-//! un message simple ACK ou NACK pour en créant un message portant un tag de message des des `DataItem`
+//! un message simple ACK ou NACK ou en créant un message avec un tag de message des des `DataItem`
 //!
 //! ```
+//! // Simple ACK
 //! let frame_ack = RawFrame::new_ack();
+//!
+//! // Simple NAK
 //! let frame_nack = RawFrame::new_nack();
+//!
+//! // Message tag=10 et une donnée TLV = {tag=1, L=booléen, V=true}
 //! let frame_message = RawFrame::new_message(tag: 10);
-//! frame_massage.try_append_data_item(
-//!     DataItem { tag: 1 t_format: TFormat::Bool, t_value: TValue::Bool(true)});
+//! frame_message.try_append_data_item(
+//!     DataItem {tag: 1 t_format: TFormat::Bool, t_value: TValue::Bool(true)}
+//! );
 //! ```
+//!
+//! Un `Vec<u8>` des octets correspondant à la la `RawFrame` est obtenu par `RawFrame::encode`
 
 use std::fmt;
 
@@ -54,10 +62,50 @@ pub const ACK: u8 = 0x06;
 /// Non-acquit de message
 pub const NACK: u8 = 0x15;
 
+/// Erreur lors de l'encodage ou du décodage d'une trame
+#[derive(Debug)]
+pub enum FrameError {
+    /// La trame est vide
+    IsEmpty,
+
+    /// La trame n'est pas correcte
+    IsJunk,
+
+    /// La trame n'est pas complètement construite
+    IsBuilding,
+
+    /// La trame n'est pas un message correct
+    IsNotOk,
+
+    /// Inconsistance longueur des `DataItem`
+    BadDataLength,
+
+    /// Inconsistance décodage des `DataItem`
+    BadDataItem,
+
+    /// Overflow de la longueur max. d'une trame
+    MaxLengthOverflow,
+}
+
+impl fmt::Display for FrameError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let s = match self {
+            FrameError::IsEmpty => "La trame est vide",
+            FrameError::IsJunk => "La trame n'est pas correcte",
+            FrameError::IsBuilding => "La trame n'est pas complètement construite",
+            FrameError::IsNotOk => "La trame n'est pas un message correct",
+            FrameError::BadDataLength => "Inconsistance longueur des `DataItem` de la trame",
+            FrameError::BadDataItem => "Inconsistance décodage des `DataItem` de la trame",
+            FrameError::MaxLengthOverflow => "Overflow de la longueur max. d'une trame",
+        };
+        write!(f, "{s}")
+    }
+}
+
 /// Énumération de l''état' courant de la construction de la trame
 #[derive(Debug, PartialEq)]
 pub enum FrameState {
-    /// Rien reçu
+    /// Rien reçu (la trame est vide)
     Empty,
 
     /// Construction en cours d'une trame qui semble correcte jusqu'à présent
@@ -127,12 +175,12 @@ pub enum RawFrame {
 
 impl fmt::Display for RawFrame {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "frame {}: {:?}", self.get_state(), self.to_vec_u8())
+        write!(f, "frame {}: {:?}", self.get_state(), self.encode())
     }
 }
 
 impl RawFrame {
-    /// Constructeur (`raw_frame` empty)
+    /// Constructeur (`RawFrame` empty)
     #[allow(dead_code)]
     pub fn new(octets: &[u8]) -> Self {
         let mut ret = RawFrame::default();
@@ -140,19 +188,19 @@ impl RawFrame {
         ret
     }
 
-    /// Constructeur `raw_frame` ACK
+    /// Constructeur `RawFrame` ACK
     #[allow(dead_code)]
     pub fn new_ack() -> Self {
         Self::Ack
     }
 
-    /// Constructeur `raw_frame` NACK
+    /// Constructeur `RawFrame` NACK
     #[allow(dead_code)]
     pub fn new_nack() -> Self {
         Self::Nack
     }
 
-    /// Constructeur `raw_frame` message (tag sans donnée)
+    /// Constructeur `RawFrame` message (tag sans donnée)
     /// Les données `DataItem` peuvent être ajoutées ensuite par `try_extend_data_item`
     #[allow(dead_code)]
     pub fn new_message(tag: u8) -> Self {
@@ -160,7 +208,7 @@ impl RawFrame {
     }
 
     /// Calcul du checksum (xor qui ignore le 1er caractère (STX) et les 2 derniers (XOR + ETX))
-    /// C'est donc le tag, la longueur des données des le contenu des données
+    /// Porte donc sur le tag, la longueur des données et le contenu des données
     #[allow(dead_code)]
     fn calcul_xor(tag: u8, len: u8, values: &[u8]) -> u8 {
         values.iter().fold(tag ^ len, |a, b| a ^ *b)
@@ -253,16 +301,16 @@ impl RawFrame {
     }
 
     /// Construction de la `RawFrame` en tentant d'ajouter un `DataItem`
-    /// Retourne une erreur si la `raw_frame` n'est pas un message OK
-    /// Retourne une erreur si l'ajout du `DataItem` produit une trame trop longue (u8)
+    /// Retourne une erreur si la `RawFrame` n'est pas un message OK
+    /// Retourne une erreur si l'ajout du `DataItem` produit une trame trop longue (`RAW_FRAME_MAX_LEN`)
     #[allow(dead_code)]
     #[allow(clippy::cast_possible_truncation)]
-    pub fn try_extend_data_item(&mut self, data_item: &DataItem) -> Result<(), &'static str> {
+    pub fn try_extend_data_item(&mut self, data_item: &DataItem) -> Result<(), FrameError> {
         if let Self::Ok(tag, len, values, _) = self {
             let vec_u8 = data_item.encode();
             let new_len = vec_u8.len() + *len as usize;
             if new_len > RAW_FRAME_MAX_LEN {
-                Err("Overflow longueur max d'un message")
+                Err(FrameError::MaxLengthOverflow)
             } else {
                 let mut new_values = values.clone();
                 new_values.extend(vec_u8);
@@ -271,11 +319,11 @@ impl RawFrame {
                 Ok(())
             }
         } else {
-            Err("Ajout data_item impossible sur une trame NOK")
+            Err(FrameError::IsNotOk)
         }
     }
 
-    /// Etat de la trame en cours
+    /// État de la `RawFrame`
     #[allow(dead_code)]
     pub fn get_state(&self) -> FrameState {
         match self {
@@ -296,9 +344,9 @@ impl RawFrame {
         }
     }
 
-    /// Extraction des octets reçus sous forme d'un `Vec<u8>`
+    /// Encodage de la `RawFrame` sous forme d'un `Vec<u8>`
     #[allow(dead_code)]
-    pub fn to_vec_u8(&self) -> Vec<u8> {
+    pub fn encode(&self) -> Vec<u8> {
         match self {
             RawFrame::Empty => vec![],
             RawFrame::Ack => vec![ACK],
@@ -346,7 +394,7 @@ impl RawFrame {
         }
     }
 
-    /// Tente de nettoyer une trame en retirant la partie 'junk' si c'est possible
+    /// Tente de nettoyer une trame en retirant la partie 'junk' si possible
     #[allow(dead_code)]
     pub fn remove_junk(&mut self) {
         match self {
@@ -371,18 +419,21 @@ mod tests {
     fn test_constructor_ack() {
         let raw_frame = RawFrame::new_ack();
         assert_eq!(raw_frame, RawFrame::Ack);
+        assert_eq!(raw_frame.encode(), vec![ACK]);
     }
 
     #[test]
     fn test_constructor_nack() {
         let raw_frame = RawFrame::new_nack();
         assert_eq!(raw_frame, RawFrame::Nack);
+        assert_eq!(raw_frame.encode(), vec![NACK]);
     }
 
     #[test]
     fn test_constructor_message() {
         let raw_frame = RawFrame::new_message(1);
         assert_eq!(raw_frame, RawFrame::Ok(1, 0, vec![], 1));
+        assert_eq!(raw_frame.encode(), vec![STX, 1, 0, 1, ETX]);
     }
 
     #[test]
@@ -400,6 +451,10 @@ mod tests {
         let data_item_vec_u8 = data_item.encode();
         let data_item_vec_u8_len = data_item_vec_u8.len() as u8;
         let xor = RawFrame::calcul_xor(message_tag, data_item_vec_u8_len, &data_item_vec_u8);
+        // Octets de cette trame
+        let mut raw_frame_as_vec_u8 = vec![STX, message_tag, data_item_vec_u8_len];
+        raw_frame_as_vec_u8.extend(&data_item_vec_u8);
+        raw_frame_as_vec_u8.extend([xor, ETX]);
 
         // Création de la raw_frame
         let mut raw_frame = RawFrame::new_message(message_tag);
@@ -415,6 +470,7 @@ mod tests {
                 xor
             )
         );
+        assert_eq!(raw_frame.encode(), raw_frame_as_vec_u8);
     }
 
     #[test]
@@ -493,7 +549,7 @@ mod tests {
                 "État incorrect de la trame construite {octets:?}"
             );
             assert_eq!(
-                frame.to_vec_u8(),
+                frame.encode(),
                 octets.to_vec(),
                 "Restitution incorrecte des octets de la trame {octets:?}"
             );

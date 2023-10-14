@@ -1,4 +1,4 @@
-//! Support pour une donnée contenue dans un message d'une trame TVV
+//! Support pour une donnée contenue dans un message d'une trame TLV
 //!
 //! Dans un une trame TLV qui porte un tag et des données, la structure `DataItem` représente
 //! le contenu d'une donnée de ce message.
@@ -15,13 +15,15 @@ use std::fmt;
 
 use crate::t_data::{be_data, TFormat, TValue};
 
+use super::FrameError;
+
 /// Contenu d'une donnée dans un message d'une trame TLV
 #[derive(Clone, Debug)]
 pub struct DataItem {
     /// tag de la donnée
     pub tag: u8,
 
-    /// format de la donnée
+    /// Format de la donnée
     pub t_format: TFormat,
 
     /// Valeur de la donnée
@@ -38,15 +40,15 @@ impl DataItem {
     /// Extraction du premier `DataItem` d'un `Vec<u8>`
     /// Si OK, retourne le `DataItem` extrait et le nombre d'octets qu'il utilise au début du `Vec<u8>`
     #[allow(dead_code)]
-    pub fn decode(values: &[u8]) -> Result<(DataItem, usize), &'static str> {
+    pub fn decode(values: &[u8]) -> Result<(DataItem, usize), FrameError> {
         if values.len() < 2 {
-            return Err("Bad data length");
+            return Err(FrameError::BadDataLength);
         }
         let tag = values[0];
         let t_format = TFormat::from(values[1]);
         let data_item_len = 2 + t_format.nb_bytes();
         if values.len() < data_item_len {
-            return Err("Bad data length");
+            return Err(FrameError::BadDataLength);
         }
         match be_data::decode(t_format, &values[2..]) {
             Ok(t_value) => Ok((
@@ -57,13 +59,13 @@ impl DataItem {
                 },
                 data_item_len,
             )),
-            Err(s) => Err(s),
+            Err(_) => Err(FrameError::BadDataItem),
         }
     }
 
     /// Extraction des `DataItem` d'un `Vec<u8>`
     #[allow(dead_code)]
-    pub fn decode_all(values: &[u8]) -> Result<Vec<DataItem>, &'static str> {
+    pub fn decode_all(values: &[u8]) -> Result<Vec<DataItem>, FrameError> {
         let mut data_items = vec![];
         let mut start_index = 0;
         while start_index < values.len() {
@@ -72,7 +74,7 @@ impl DataItem {
                     data_items.push(data_item);
                     start_index += len;
                 }
-                Err(s) => return Err(s),
+                Err(e) => return Err(e),
             }
         }
         Ok(data_items)

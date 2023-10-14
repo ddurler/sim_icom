@@ -3,7 +3,7 @@
 //!
 //! Ce module s'appuie sur la structure [`RawFrame`] qui gère le transport des messages octet par octet.
 //!
-//! Le message est ensuite décoder/encoder par une structure logique de son contenu avec :
+//! Le message est ensuite décodé/encodé dans une structure logique de son contenu avec :
 //!
 //! * tag : Sujet principal du message
 //! * `Vec<DataItem>` : Liste des données dans le message
@@ -13,7 +13,7 @@
 use std::convert;
 use std::fmt;
 
-use super::{DataItem, RawFrame};
+use super::{DataItem, FrameError, RawFrame};
 
 /// Abstraction logique du contenu d'une trame TLV
 #[derive(Debug)]
@@ -21,7 +21,7 @@ pub enum DataFrame {
     /// Message simple ACK
     SimpleACK,
 
-    //. Message simple NACK
+    /// Message simple NACK
     SimpleNACK,
 
     /// tag  + données
@@ -47,25 +47,25 @@ impl fmt::Display for DataFrame {
 }
 
 impl convert::TryFrom<RawFrame> for DataFrame {
-    type Error = &'static str;
+    type Error = FrameError;
 
     fn try_from(value: RawFrame) -> Result<Self, Self::Error> {
         match value {
-            RawFrame::Empty => Err("Empty frame"),
+            RawFrame::Empty => Err(FrameError::IsEmpty),
             RawFrame::Ack => Ok(DataFrame::SimpleACK),
             RawFrame::AckAndJunk(_)
             | RawFrame::NackAndJunk(_)
             | RawFrame::OkAndJunk(_, _, _, _, _)
-            | RawFrame::Junk(_) => Err("Junk frame"),
+            | RawFrame::Junk(_) => Err(FrameError::IsJunk),
             RawFrame::Nack => Ok(DataFrame::SimpleNACK),
             RawFrame::Stx
             | RawFrame::Tag(_)
             | RawFrame::TagLen(_, _)
             | RawFrame::TagLenValue(_, _, _)
-            | RawFrame::Xor(_, _, _, _) => Err("Building frame"),
+            | RawFrame::Xor(_, _, _, _) => Err(FrameError::IsBuilding),
             RawFrame::Ok(tag, _, values, _) => match DataItem::decode_all(&values) {
                 Ok(data_items) => Ok(DataFrame::Message(tag, data_items)),
-                Err(s) => Err(s),
+                Err(_) => Err(FrameError::BadDataItem),
             },
         }
     }
