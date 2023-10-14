@@ -21,10 +21,26 @@
 //! devient `FrameState::Junk`. On peut alors tenter `frame.remove_junk` pour retrouver la trame correcte
 //! du début.
 //!
-//! Ce module est également prévu pour interagir avec une vue 'logique' de la trame via [`DataFrame`]
-//! pour décoder le contenu et encoder une réponse
+//! Ce module est également prévu pour interagir avec une vue 'logique' de la trame via `DataFrame`
+//! pour décoder le contenu et encoder la réponse
+//!
+//! Enfin, ce module propose les primitives nécessaires pour encoder la réponse élaborée en créant
+//! un message simple ACK ou NACK pour en créant un message portant un tag de message des des `DataItem`
+//!
+//! ```
+//! let frame_ack = RawFrame::new_ack();
+//! let frame_nack = RawFrame::new_nack();
+//! let frame_message = RawFrame::new_message(tag: 10);
+//! frame_massage.try_append_data_item(
+//!     DataItem { tag: 1 t_format: TFormat::Bool, t_value: TValue::Bool(true)});
+//! ```
 
 use std::fmt;
+
+use super::DataItem;
+
+/// Longueur max des données d'un message TLV
+const RAW_FRAME_MAX_LEN: usize = 250;
 
 /// Début de message
 pub const STX: u8 = 0x02;
@@ -116,41 +132,42 @@ impl fmt::Display for RawFrame {
 }
 
 impl RawFrame {
-    /// Constructeur
+    /// Constructeur (`raw_frame` empty)
+    #[allow(dead_code)]
     pub fn new(octets: &[u8]) -> Self {
         let mut ret = RawFrame::default();
         ret.extend(octets);
         ret
     }
 
+    /// Constructeur `raw_frame` ACK
+    #[allow(dead_code)]
+    pub fn new_ack() -> Self {
+        Self::Ack
+    }
+
+    /// Constructeur `raw_frame` NACK
+    #[allow(dead_code)]
+    pub fn new_nack() -> Self {
+        Self::Nack
+    }
+
+    /// Constructeur `raw_frame` message (tag sans donnée)
+    /// Les données `DataItem` peuvent être ajoutées ensuite par `try_extend_data_item`
+    #[allow(dead_code)]
+    pub fn new_message(tag: u8) -> Self {
+        Self::Ok(tag, 0, vec![], tag)
+    }
+
     /// Calcul du checksum (xor qui ignore le 1er caractère (STX) et les 2 derniers (XOR + ETX))
-    pub fn calcul_xor(&self) -> u8 {
-        match self {
-            RawFrame::Empty
-            | RawFrame::Ack
-            | RawFrame::AckAndJunk(_)
-            | RawFrame::Nack
-            | RawFrame::NackAndJunk(_)
-            | RawFrame::Junk(_)
-            | RawFrame::Stx => 0,
-            RawFrame::Tag(tag) => *tag,
-            RawFrame::TagLen(tag, len) => *tag ^ *len,
-            RawFrame::TagLenValue(tag, len, values) => {
-                let mut xor: u8 = 0;
-                xor ^= *tag;
-                xor ^= *len;
-                for v in values {
-                    xor ^= *v;
-                }
-                xor
-            }
-            RawFrame::Xor(_, _, _, xor)
-            | RawFrame::Ok(_, _, _, xor)
-            | RawFrame::OkAndJunk(_, _, _, xor, _) => *xor,
-        }
+    /// C'est donc le tag, la longueur des données des le contenu des données
+    #[allow(dead_code)]
+    fn calcul_xor(tag: u8, len: u8, values: &[u8]) -> u8 {
+        values.iter().fold(tag ^ len, |a, b| a ^ *b)
     }
 
     /// Construction de la `RawFrame` en ajoutant un octet
+    #[allow(dead_code)]
     pub fn push(&mut self, octet: u8) {
         *self = match self {
             RawFrame::Empty => match octet {
@@ -173,11 +190,11 @@ impl RawFrame {
             RawFrame::Tag(tag) => RawFrame::TagLen(*tag, octet),
             RawFrame::TagLen(tag, len) => {
                 if *len == 0 {
-                    // Octet est le XOR de la trame
-                    if octet == RawFrame::TagLenValue(*tag, *len, vec![]).calcul_xor() {
-                        RawFrame::Xor(*tag, *len, vec![], octet)
+                    // Octet est le XOR d'un trame vide, dont tag ^ 0 ^ [] -> tag
+                    if octet == *tag {
+                        RawFrame::Xor(*tag, 0, vec![], octet)
                     } else {
-                        let junk = vec![STX, *tag, *len, octet];
+                        let junk = vec![STX, *tag, 0, octet];
                         RawFrame::Junk(junk)
                     }
                 } else {
@@ -187,9 +204,9 @@ impl RawFrame {
             RawFrame::TagLenValue(tag, len, values) => {
                 if *len as usize == values.len() {
                     // Octet est le XOR de la trame
-                    let f = RawFrame::TagLenValue(*tag, *len, values.clone());
-                    if octet == f.calcul_xor() {
-                        RawFrame::Xor(*tag, *len, values.clone(), octet)
+                    let xor = RawFrame::calcul_xor(*tag, *len, values);
+                    if octet == xor {
+                        RawFrame::Xor(*tag, *len, values.clone(), xor)
                     } else {
                         let mut junk = vec![STX, *tag, *len];
                         junk.extend(values.clone());
@@ -228,13 +245,38 @@ impl RawFrame {
     }
 
     /// Construction de la `RawFrame` en ajoutant des octets
+    #[allow(dead_code)]
     pub fn extend(&mut self, octets: &[u8]) {
         for octet in octets {
             self.push(*octet);
         }
     }
 
+    /// Construction de la `RawFrame` en tentant d'ajouter un `DataItem`
+    /// Retourne une erreur si la `raw_frame` n'est pas un message OK
+    /// Retourne une erreur si l'ajout du `DataItem` produit une trame trop longue (u8)
+    #[allow(dead_code)]
+    #[allow(clippy::cast_possible_truncation)]
+    pub fn try_extend_data_item(&mut self, data_item: &DataItem) -> Result<(), &'static str> {
+        if let Self::Ok(tag, len, values, _) = self {
+            let vec_u8 = data_item.encode();
+            let new_len = vec_u8.len() + *len as usize;
+            if new_len > RAW_FRAME_MAX_LEN {
+                Err("Overflow longueur max d'un message")
+            } else {
+                let mut new_values = values.clone();
+                new_values.extend(vec_u8);
+                let new_xor = RawFrame::calcul_xor(*tag, new_len as u8, &new_values);
+                *self = Self::Ok(*tag, new_len as u8, new_values, new_xor);
+                Ok(())
+            }
+        } else {
+            Err("Ajout data_item impossible sur une trame NOK")
+        }
+    }
+
     /// Etat de la trame en cours
+    #[allow(dead_code)]
     pub fn get_state(&self) -> FrameState {
         match self {
             RawFrame::Empty => FrameState::Empty,
@@ -255,6 +297,7 @@ impl RawFrame {
     }
 
     /// Extraction des octets reçus sous forme d'un `Vec<u8>`
+    #[allow(dead_code)]
     pub fn to_vec_u8(&self) -> Vec<u8> {
         match self {
             RawFrame::Empty => vec![],
@@ -304,6 +347,7 @@ impl RawFrame {
     }
 
     /// Tente de nettoyer une trame en retirant la partie 'junk' si c'est possible
+    #[allow(dead_code)]
     pub fn remove_junk(&mut self) {
         match self {
             RawFrame::AckAndJunk(_) => *self = RawFrame::Ack,
@@ -320,6 +364,58 @@ impl RawFrame {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::t_data::{TFormat, TValue};
+
+    #[test]
+    fn test_constructor_ack() {
+        let raw_frame = RawFrame::new_ack();
+        assert_eq!(raw_frame, RawFrame::Ack);
+    }
+
+    #[test]
+    fn test_constructor_nack() {
+        let raw_frame = RawFrame::new_nack();
+        assert_eq!(raw_frame, RawFrame::Nack);
+    }
+
+    #[test]
+    fn test_constructor_message() {
+        let raw_frame = RawFrame::new_message(1);
+        assert_eq!(raw_frame, RawFrame::Ok(1, 0, vec![], 1));
+    }
+
+    #[test]
+    #[allow(clippy::cast_possible_truncation)]
+    fn test_decode_message() {
+        // Contenu du message pour le test
+        let message_tag = 1;
+        let data_item = DataItem {
+            tag: 2,
+            t_format: TFormat::U16,
+            t_value: TValue::U16(123),
+        };
+
+        // Éléments théorique du contenu du message
+        let data_item_vec_u8 = data_item.encode();
+        let data_item_vec_u8_len = data_item_vec_u8.len() as u8;
+        let xor = RawFrame::calcul_xor(message_tag, data_item_vec_u8_len, &data_item_vec_u8);
+
+        // Création de la raw_frame
+        let mut raw_frame = RawFrame::new_message(message_tag);
+        raw_frame.try_extend_data_item(&data_item).unwrap();
+
+        // On s'assure que cette raw_frame est bien ce qu'on a voulu créer
+        assert_eq!(
+            raw_frame,
+            RawFrame::Ok(
+                message_tag,
+                data_item_vec_u8_len,
+                data_item_vec_u8.clone(),
+                xor
+            )
+        );
+    }
 
     #[test]
     fn test_construction() {

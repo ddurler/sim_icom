@@ -10,5 +10,8 @@
 mod data_frame;
 pub use data_frame::DataFrame;
 
+mod data_item;
+pub use data_item::DataItem;
+
 mod raw_frame;
 pub use raw_frame::RawFrame;

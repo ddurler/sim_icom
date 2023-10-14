@@ -11,44 +11,53 @@ pub fn decode(t_format: TFormat, vec_u8: &[u8]) -> Result<TValue, &'static str> 
     if vec_u8.len() < t_format.nb_bytes() {
         Err("Missing u8 in data")
     } else {
+        let vec_u8 = vec_u8.to_vec();
         Ok(match t_format {
             TFormat::Unknown => TValue::String(0, String::new()),
             TFormat::Bool => TValue::Bool(vec_u8[0] != 0),
             TFormat::U8 => TValue::U8(vec_u8[0]),
             TFormat::I8 => TValue::I8(vec_u8[0] as i8),
             TFormat::U16 => {
+                let vec_u8: Vec<u8> = vec_u8.iter().take(2).copied().collect();
                 let vec_u8: [u8; 2] = vec_u8.try_into().unwrap();
                 TValue::U16(u16::from_be_bytes(vec_u8))
             }
             TFormat::I16 => {
+                let vec_u8: Vec<u8> = vec_u8.iter().take(2).copied().collect();
                 let vec_u8: [u8; 2] = vec_u8.try_into().unwrap();
                 TValue::I16(i16::from_be_bytes(vec_u8))
             }
             TFormat::U32 => {
+                let vec_u8: Vec<u8> = vec_u8.iter().take(4).copied().collect();
                 let vec_u8: [u8; 4] = vec_u8.try_into().unwrap();
                 TValue::U32(u32::from_be_bytes(vec_u8))
             }
             TFormat::I32 => {
+                let vec_u8: Vec<u8> = vec_u8.iter().take(4).copied().collect();
                 let vec_u8: [u8; 4] = vec_u8.try_into().unwrap();
                 TValue::I32(i32::from_be_bytes(vec_u8))
             }
             TFormat::U64 => {
+                let vec_u8: Vec<u8> = vec_u8.iter().take(8).copied().collect();
                 let vec_u8: [u8; 8] = vec_u8.try_into().unwrap();
                 TValue::U64(u64::from_be_bytes(vec_u8))
             }
             TFormat::I64 => {
+                let vec_u8: Vec<u8> = vec_u8.iter().take(8).copied().collect();
                 let vec_u8: [u8; 8] = vec_u8.try_into().unwrap();
                 TValue::I64(i64::from_be_bytes(vec_u8))
             }
             TFormat::F32 => {
+                let vec_u8: Vec<u8> = vec_u8.iter().take(4).copied().collect();
                 let vec_u8: [u8; 4] = vec_u8.try_into().unwrap();
                 TValue::F32(f32::from_be_bytes(vec_u8))
             }
             TFormat::F64 => {
+                let vec_u8: Vec<u8> = vec_u8.iter().take(8).copied().collect();
                 let vec_u8: [u8; 8] = vec_u8.try_into().unwrap();
                 TValue::F64(f64::from_be_bytes(vec_u8))
             }
-            TFormat::String(n) => TValue::String(n, String::from_utf8_lossy(vec_u8).into()),
+            TFormat::String(n) => TValue::String(n, String::from_utf8_lossy(&vec_u8).into()),
         })
     }
 }

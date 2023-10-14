@@ -6,51 +6,14 @@
 //! Le message est ensuite décoder/encoder par une structure logique de son contenu avec :
 //!
 //! * tag : Sujet principal du message
-//! * Vec<DataItem> : Liste des données dans le message
+//! * `Vec<DataItem>` : Liste des données dans le message
 //!
-//! Un `DataItem` est également un triplet Tag + Length + Value où :
-//!
-//! * Tag : Caractérise la donnée
-//! * Length est le type de la donnée (qui induit sa longueur). C'est un [`TFormat`]
-//! * Value est la donnée. C'est un [`TValue`]
+//! Les données du message sont portées par `DataItem`
 
 use std::convert;
 use std::fmt;
 
-use crate::t_data::{be_data, TFormat, TValue};
-
-use super::RawFrame;
-
-/// Contenu d'une donnée dans une trame TLV
-#[derive(Clone, Debug)]
-pub struct DataItem {
-    /// tag de la donnée
-    pub tag: u8,
-
-    /// format de la donnée
-    pub t_format: TFormat,
-
-    // Valeur
-    pub t_value: TValue,
-}
-
-impl fmt::Display for DataItem {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "T={} L={} V={}", self.tag, self.t_format, self.t_value)
-    }
-}
-
-impl DataItem {
-    // Encode un `DataItem` -> `Vec<u8>`
-    pub fn encode(&self) -> Vec<u8> {
-        let tag = self.tag;
-        let format = u8::from(self.t_format);
-        let value_vec_u8 = be_data::encode(&self.t_value);
-        let mut vec_u8 = vec![tag, format];
-        vec_u8.extend(value_vec_u8);
-        vec_u8
-    }
-}
+use super::{DataItem, RawFrame};
 
 /// Abstraction logique du contenu d'une trame TLV
 #[derive(Debug)]
@@ -83,47 +46,6 @@ impl fmt::Display for DataFrame {
     }
 }
 
-/// Extraction du premier `DataItem` d'un `Vec<u8>`
-/// Si OK, retourne le `DataItem` extrait et le nombre d'octets qu'il utilise au début du `Vec<u8>`
-fn extract_first_data_item(values: &[u8]) -> Result<(DataItem, usize), &'static str> {
-    if values.len() < 2 {
-        return Err("Bad data length");
-    }
-    let tag = values[0];
-    let t_format = TFormat::from(values[1]);
-    let data_item_len = 2 + t_format.nb_bytes();
-    if values.len() < data_item_len {
-        return Err("Bad data length");
-    }
-    match be_data::decode(t_format, &values[2..]) {
-        Ok(t_value) => Ok((
-            DataItem {
-                tag,
-                t_format,
-                t_value,
-            },
-            data_item_len,
-        )),
-        Err(s) => Err(s),
-    }
-}
-
-/// Extraction des `DataItem` d'un `Vec<u8>`
-fn extract_data_items(values: &[u8]) -> Result<Vec<DataItem>, &'static str> {
-    let mut data_items = vec![];
-    let mut start_index = 0;
-    while start_index < values.len() {
-        match extract_first_data_item(&values[start_index..]) {
-            Ok((data_item, index)) => {
-                data_items.push(data_item);
-                start_index += index;
-            }
-            Err(s) => return Err(s),
-        }
-    }
-    Ok(data_items)
-}
-
 impl convert::TryFrom<RawFrame> for DataFrame {
     type Error = &'static str;
 
@@ -141,7 +63,7 @@ impl convert::TryFrom<RawFrame> for DataFrame {
             | RawFrame::TagLen(_, _)
             | RawFrame::TagLenValue(_, _, _)
             | RawFrame::Xor(_, _, _, _) => Err("Building frame"),
-            RawFrame::Ok(tag, _, values, _) => match extract_data_items(&values) {
+            RawFrame::Ok(tag, _, values, _) => match DataItem::decode_all(&values) {
                 Ok(data_items) => Ok(DataFrame::Message(tag, data_items)),
                 Err(s) => Err(s),
             },
@@ -153,13 +75,11 @@ impl convert::TryFrom<RawFrame> for DataFrame {
 mod tests {
     use super::*;
 
-    use crate::afsec::tlv_frame::raw_frame;
+    use crate::t_data::{TFormat, TValue};
 
     #[test]
     fn test_decode_ack() {
-        // TODO : Utiliser ici l'encodeur de RawFrame...
-        let raw_frame = RawFrame::new(&[raw_frame::ACK]);
-        assert_eq!(raw_frame, RawFrame::Ack);
+        let raw_frame = RawFrame::new_ack();
         let result_data_frame = DataFrame::try_from(raw_frame);
         assert!(result_data_frame.is_ok());
         let data_frame = result_data_frame.unwrap();
@@ -171,23 +91,19 @@ mod tests {
 
     #[test]
     fn test_decode_nack() {
-        // TODO : Utiliser ici l'encodeur de RawFrame...
-        let raw_frame = RawFrame::new(&[raw_frame::NACK]);
-        assert_eq!(raw_frame, RawFrame::Nack);
+        let raw_frame = RawFrame::new_nack();
         let result_data_frame = DataFrame::try_from(raw_frame);
         assert!(result_data_frame.is_ok());
         let data_frame = result_data_frame.unwrap();
         if let DataFrame::SimpleNACK = data_frame {
         } else {
-            panic!("Mauvais décodage d'un ACK")
+            panic!("Mauvais décodage d'un NACK")
         }
     }
 
     #[test]
     #[allow(clippy::cast_possible_truncation)]
-    fn test_decode_message() {
-        // TODO : Utiliser ici l'encodeur de RawFrame...
-
+    fn test_encode_message() {
         // Contenu du message
         let message_tag = 1;
         let data_item = DataItem {
@@ -195,34 +111,15 @@ mod tests {
             t_format: TFormat::U16,
             t_value: TValue::U16(123),
         };
-        let data_item_vec_u8 = data_item.encode();
-        let data_item_vec_u8_len = data_item_vec_u8.len() as u8;
-        let xor = data_item_vec_u8
-            .clone()
-            .iter()
-            .fold(message_tag ^ data_item_vec_u8_len, |a, b| a ^ *b);
 
         // Création de la raw_frame
-        let mut message_vec_u8 = vec![raw_frame::STX, message_tag, data_item_vec_u8_len];
-        message_vec_u8.extend(data_item_vec_u8.clone());
-        message_vec_u8.extend(&[xor, raw_frame::ETX]);
-
-        let raw_frame = RawFrame::new(&message_vec_u8);
-        // On s'assure que cette raw_frame est bien ce qu'on a voulu créer
-        assert_eq!(
-            raw_frame,
-            RawFrame::Ok(
-                message_tag,
-                data_item_vec_u8_len,
-                data_item_vec_u8.clone(),
-                xor
-            )
-        );
+        let mut raw_frame = RawFrame::new_message(message_tag);
+        raw_frame.try_extend_data_item(&data_item).unwrap();
 
         // Décodage de la raw_frame en data_frame
         let result_data_frame = DataFrame::try_from(raw_frame);
 
-        // On vérifie que la data_frame à bien identifier le contenu du message créé
+        // On vérifie que la data_frame à bien identifié le contenu du message créé
         assert!(result_data_frame.is_ok());
         let data_frame = result_data_frame.unwrap();
         if let DataFrame::Message(tag, data_items) = data_frame {
@@ -239,5 +136,28 @@ mod tests {
         } else {
             panic!("Mauvais décodage d'un message")
         }
+    }
+
+    #[test]
+    fn test_overflow_message() {
+        // Contenu du message
+        let message_tag = 1;
+        let data_item = DataItem {
+            tag: 2,
+            t_format: TFormat::U16,
+            t_value: TValue::U16(123),
+        };
+
+        // Création de la raw_frame
+        let mut raw_frame = RawFrame::new_message(message_tag);
+
+        // On vérifie qu'on ne peut pas ajouter indéfiniment des `data_item`
+        for _ in 0..256 {
+            if raw_frame.try_extend_data_item(&data_item).is_err() {
+                return;
+            }
+        }
+
+        panic!("Overflow construction du message non détectée");
     }
 }

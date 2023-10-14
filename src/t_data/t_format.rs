@@ -1,18 +1,18 @@
 //! Codage et format d'une donnée de la database sur un octet
 //!
-//! 0x00 : Pas de format connu
-//! 0x01 = u8
-//! 0x11 = Booléen
-//! 0x02 = u16
-//! 0x04 = u32
-//! 0x08 = u64
-//! 0x41 = i8
-//! 0x42 = i16
-//! 0x44 = i32
-//! 0x48 = i64
-//! 0x64 = f32
-//! 0x68 = f64
-//! 0x81 à FF = String(1-127)
+//! * 0x00 : Pas de format connu
+//! * 0x01 = u8
+//! * 0x11 = Booléen
+//! * 0x02 = u16
+//! * 0x04 = u32
+//! * 0x08 = u64
+//! * 0x41 = i8
+//! * 0x42 = i16
+//! * 0x44 = i32
+//! * 0x48 = i64
+//! * 0x64 = f32
+//! * 0x68 = f64
+//! * 0x81 à FF = String(1-127)
 
 use std::fmt;
 
