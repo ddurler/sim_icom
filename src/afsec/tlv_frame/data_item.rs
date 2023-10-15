@@ -37,6 +37,16 @@ impl fmt::Display for DataItem {
 }
 
 impl DataItem {
+    /// Constructeur
+    #[allow(dead_code)]
+    pub fn new(tag: u8, t_format: TFormat, t_value: TValue) -> Self {
+        Self {
+            tag,
+            t_format,
+            t_value,
+        }
+    }
+
     /// Extraction du premier `DataItem` d'un `Vec<u8>`
     /// Si OK, retourne le `DataItem` extrait et le nombre d'octets qu'il utilise au début du `Vec<u8>`
     #[allow(dead_code)]
@@ -51,14 +61,7 @@ impl DataItem {
             return Err(FrameError::BadDataLength);
         }
         match be_data::decode(t_format, &values[2..]) {
-            Ok(t_value) => Ok((
-                DataItem {
-                    tag,
-                    t_format,
-                    t_value,
-                },
-                data_item_len,
-            )),
+            Ok(t_value) => Ok((DataItem::new(tag, t_format, t_value), data_item_len)),
             Err(_) => Err(FrameError::BadDataItem),
         }
     }
@@ -115,11 +118,7 @@ mod tests {
         ] {
             let tag = 12;
             let t_format = TFormat::from(&t_value);
-            let data_item_in = DataItem {
-                tag,
-                t_format,
-                t_value: t_value.clone(),
-            };
+            let data_item_in = DataItem::new(tag, t_format, t_value.clone());
             let vec_u8 = DataItem::encode(&data_item_in);
             let result_data_item_out = DataItem::decode(&vec_u8);
             assert!(result_data_item_out.is_ok());
@@ -135,41 +134,13 @@ mod tests {
     fn test_multiple_decode() {
         // Liste des DataItem dans un même Vec<u8>
         let test_data_items = vec![
-            DataItem {
-                tag: 1,
-                t_format: TFormat::Bool,
-                t_value: TValue::Bool(true),
-            },
-            DataItem {
-                tag: 2,
-                t_format: TFormat::U16,
-                t_value: TValue::U16(123),
-            },
-            DataItem {
-                tag: 3,
-                t_format: TFormat::String(3),
-                t_value: TValue::String(3, "ABC".to_string()),
-            },
-            DataItem {
-                tag: 4,
-                t_format: TFormat::F32,
-                t_value: TValue::F32(1.23),
-            },
-            DataItem {
-                tag: 5,
-                t_format: TFormat::I16,
-                t_value: TValue::I16(-123),
-            },
-            DataItem {
-                tag: 6,
-                t_format: TFormat::String(0),
-                t_value: TValue::String(0, String::new()),
-            },
-            DataItem {
-                tag: 7,
-                t_format: TFormat::I64,
-                t_value: TValue::I64(-1_000_000_000),
-            },
+            DataItem::new(1, TFormat::Bool, TValue::Bool(true)),
+            DataItem::new(2, TFormat::U16, TValue::U16(123)),
+            DataItem::new(3, TFormat::String(3), TValue::String(3, "ABC".to_string())),
+            DataItem::new(4, TFormat::F32, TValue::F32(1.23)),
+            DataItem::new(5, TFormat::I16, TValue::I16(-123)),
+            DataItem::new(6, TFormat::String(0), TValue::String(0, String::new())),
+            DataItem::new(7, TFormat::I64, TValue::I64(-1_000_000_000)),
         ];
 
         // Création d'un Vec<u8> contenant tous les test_data_items

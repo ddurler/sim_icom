@@ -13,7 +13,7 @@
 use std::convert;
 use std::fmt;
 
-use super::{DataItem, FrameError, RawFrame};
+use super::{DataItem, FrameError, RawFrame, ACK, NACK};
 
 /// Abstraction logique du contenu d'une trame TLV
 #[derive(Debug)]
@@ -52,21 +52,66 @@ impl convert::TryFrom<RawFrame> for DataFrame {
     fn try_from(value: RawFrame) -> Result<Self, Self::Error> {
         match value {
             RawFrame::Empty => Err(FrameError::IsEmpty),
+
             RawFrame::Ack => Ok(DataFrame::SimpleACK),
+
             RawFrame::AckAndJunk(_)
             | RawFrame::NackAndJunk(_)
             | RawFrame::OkAndJunk(_, _, _, _, _)
             | RawFrame::Junk(_) => Err(FrameError::IsJunk),
+
             RawFrame::Nack => Ok(DataFrame::SimpleNACK),
+
             RawFrame::Stx
             | RawFrame::Tag(_)
             | RawFrame::TagLen(_, _)
             | RawFrame::TagLenValue(_, _, _)
             | RawFrame::Xor(_, _, _, _) => Err(FrameError::IsBuilding),
-            RawFrame::Ok(tag, _, values, _) => match DataItem::decode_all(&values) {
+
+            RawFrame::Ok(tag, _, data_items, _) => match DataItem::decode_all(&data_items) {
                 Ok(data_items) => Ok(DataFrame::Message(tag, data_items)),
                 Err(_) => Err(FrameError::BadDataItem),
             },
+        }
+    }
+}
+
+impl DataFrame {
+    /// Retourne true s'il s'agit d'une trame simple ACK
+    #[allow(dead_code)]
+    pub fn is_simple_ack(&self) -> bool {
+        matches!(self, DataFrame::SimpleACK)
+    }
+
+    /// Retourne true s'il s'agit d'une trame simple NACK
+    #[allow(dead_code)]
+    pub fn is_simple_nack(&self) -> bool {
+        matches!(self, DataFrame::SimpleNACK)
+    }
+
+    /// Retourne true s'il s'agit d'une trame message tag + `Vec<DataItem>`
+    #[allow(dead_code)]
+    pub fn is_message(&self) -> bool {
+        matches!(self, DataFrame::Message(_, _))
+    }
+
+    /// Retourne le type de trame (tag) ou ACK si simple ACK ou NACK si simple NACK
+    #[allow(dead_code)]
+    pub fn get_tag(&self) -> u8 {
+        match self {
+            DataFrame::SimpleACK => ACK,
+            DataFrame::SimpleNACK => NACK,
+            DataFrame::Message(tag, _) => *tag,
+        }
+    }
+
+    /// Retourne un `Vec<DataItem>` du message
+    #[allow(dead_code)]
+    pub fn get_data_items(&self) -> Vec<DataItem> {
+        if let DataFrame::Message(_, data_items) = self {
+            data_items.clone()
+        } else {
+            vec![]
         }
     }
 }
@@ -87,6 +132,7 @@ mod tests {
         } else {
             panic!("Mauvais décodage d'un ACK")
         }
+        assert!(data_frame.is_simple_ack());
     }
 
     #[test]
@@ -99,6 +145,7 @@ mod tests {
         } else {
             panic!("Mauvais décodage d'un NACK")
         }
+        assert!(data_frame.is_simple_nack());
     }
 
     #[test]
@@ -106,11 +153,7 @@ mod tests {
     fn test_encode_message() {
         // Contenu du message
         let message_tag = 1;
-        let data_item = DataItem {
-            tag: 2,
-            t_format: TFormat::U16,
-            t_value: TValue::U16(123),
-        };
+        let data_item = DataItem::new(2, TFormat::U16, TValue::U16(123));
 
         // Création de la raw_frame
         let mut raw_frame = RawFrame::new_message(message_tag);
@@ -118,23 +161,65 @@ mod tests {
 
         // Décodage de la raw_frame en data_frame
         let result_data_frame = DataFrame::try_from(raw_frame);
-
-        // On vérifie que la data_frame à bien identifié le contenu du message créé
         assert!(result_data_frame.is_ok());
         let data_frame = result_data_frame.unwrap();
-        if let DataFrame::Message(tag, data_items) = data_frame {
-            assert_eq!(message_tag, tag);
-            assert_eq!(data_items.len(), 1);
-            let data_item = data_items[0].clone();
-            assert_eq!(data_item.tag, 2);
-            assert_eq!(data_item.t_format, TFormat::U16);
-            if let TValue::U16(value) = data_item.t_value {
-                assert_eq!(value, 123);
-            } else {
-                panic!("Mauvais décodage de la valeur d'une donnée dans un message")
-            }
+
+        // On vérifie que la data_frame a bien identifié le contenu du message créé
+        assert!(data_frame.is_message());
+        assert_eq!(data_frame.get_tag(), message_tag);
+        let data_items = data_frame.get_data_items();
+        assert_eq!(data_items.len(), 1);
+        let data_item = data_items[0].clone();
+        assert_eq!(data_item.tag, 2);
+        assert_eq!(data_item.t_format, TFormat::U16);
+        if let TValue::U16(value) = data_item.t_value {
+            assert_eq!(value, 123);
         } else {
-            panic!("Mauvais décodage d'un message")
+            panic!("Mauvais décodage de la valeur d'une donnée dans un message")
+        }
+    }
+
+    #[test]
+    #[allow(clippy::cast_lossless)]
+    fn test_message_data_items() {
+        let nb_data_items = 10;
+        // Création d'une table de DataItem's
+        let mut test_data_items = vec![];
+        for i in 0..nb_data_items {
+            // Change de type de valeur selon l'indice
+            let (t_format, t_value) = match i % 4 {
+                0 => (TFormat::U8, TValue::U8(i)),
+                1 => (TFormat::U16, TValue::U16(i as u16)),
+                2 => (TFormat::U32, TValue::U32(i as u32)),
+                _ => (TFormat::U64, TValue::U64(i as u64)),
+            };
+            let test_data_item = DataItem::new(i, t_format, t_value);
+            test_data_items.push(test_data_item);
+        }
+
+        // Création de la raw_frame
+        let mut raw_frame = RawFrame::new_message(1);
+        for i in 0..nb_data_items {
+            raw_frame
+                .try_extend_data_item(&test_data_items[i as usize])
+                .unwrap();
+        }
+
+        // Décodage de la raw_frame en data_frame
+        let result_data_frame = DataFrame::try_from(raw_frame);
+        assert!(result_data_frame.is_ok());
+        let data_frame = result_data_frame.unwrap();
+        assert!(data_frame.is_message());
+        assert_eq!(data_frame.get_data_items().len(), nb_data_items as usize);
+
+        // Parcourt des data_items
+        for (i, data_item) in data_frame.get_data_items().iter().enumerate() {
+            assert_eq!(data_item.tag, test_data_items[i].tag);
+            assert_eq!(data_item.t_format, test_data_items[i].t_format);
+            assert_eq!(
+                u16::from(&data_item.t_value),
+                u16::from(&test_data_items[i].t_value)
+            );
         }
     }
 
@@ -142,11 +227,7 @@ mod tests {
     fn test_overflow_message() {
         // Contenu du message
         let message_tag = 1;
-        let data_item = DataItem {
-            tag: 2,
-            t_format: TFormat::U16,
-            t_value: TValue::U16(123),
-        };
+        let data_item = DataItem::new(2, TFormat::U16, TValue::U16(123));
 
         // Création de la raw_frame
         let mut raw_frame = RawFrame::new_message(message_tag);

@@ -36,9 +36,7 @@
 //!
 //! // Message tag=10 et une donnée TLV = {tag=1, L=booléen, V=true}
 //! let frame_message = RawFrame::new_message(tag: 10);
-//! frame_message.try_append_data_item(
-//!     DataItem {tag: 1 t_format: TFormat::Bool, t_value: TValue::Bool(true)}
-//! );
+//! frame_message.try_append_data_item(DataItem::new(1, TFormat::Bool, TValue::Bool(true)));
 //! ```
 //!
 //! Un `Vec<u8>` des octets correspondant à la la `RawFrame` est obtenu par `RawFrame::encode`
@@ -441,11 +439,7 @@ mod tests {
     fn test_decode_message() {
         // Contenu du message pour le test
         let message_tag = 1;
-        let data_item = DataItem {
-            tag: 2,
-            t_format: TFormat::U16,
-            t_value: TValue::U16(123),
-        };
+        let data_item = DataItem::new(2, TFormat::U16, TValue::U16(123));
 
         // Éléments théorique du contenu du message
         let data_item_vec_u8 = data_item.encode();
