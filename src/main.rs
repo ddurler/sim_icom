@@ -1,3 +1,5 @@
+//! Simulateur logiciel de l'ICOM d'une solution AFSEC+ ALMA
+//!
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
