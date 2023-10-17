@@ -78,3 +78,14 @@ pub const D_TEST_NB_REQS: u8 = 0x71;
 pub const D_TEST_NB_REPS: u8 = 0x72;
 
 pub const D_PACK_PAYLOAD: u8 = 0xB0;
+
+/// Helper pour découper un u32 en 10000 * version + 100 * revision + edition
+pub fn get_version_revision_edition_from_u32(version_revision_edition: u32) -> (u16, u16, u16) {
+    let edition = version_revision_edition % 100;
+    let version_revision_edition = version_revision_edition / 100;
+    let revision = version_revision_edition % 100;
+    let version_revision_edition = version_revision_edition / 100;
+    let version = version_revision_edition % 100;
+
+    (version as u16, revision as u16, edition as u16)
+}

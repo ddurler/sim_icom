@@ -1,6 +1,7 @@
 //! Process en communication avec l'AFSEC+ via un port série
 
 use std::sync::{Arc, Mutex};
+use tokio::time::Instant;
 
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 
@@ -11,6 +12,9 @@ use tlv_frame::{DataFrame, FrameState, RawFrame};
 
 mod middleware;
 pub use middleware::Middlewares;
+
+/// Temporisation entre chaque surveillance pour les `notification_changes`
+const DURATION_NOTIFICATION_CHANGES_SECS: f32 = 1.0;
 
 /// Wrapper de [`Database`] pour la communication série avec l'AFSEC
 pub struct DatabaseAfsecComm {
@@ -66,6 +70,9 @@ pub async fn database_afsec_process(afsec_service: &mut DatabaseAfsecComm) {
     // Création du gestionnaire des `middlewares` pour les conversations avec l'AFSEC+
     let mut middlewares = Middlewares::new();
 
+    // Timer pour surveiller les notifications
+    let mut date_last_notification_changes = Instant::now();
+
     loop {
         // Gestion communication AFSEC+ sur le port
         let tempo = read_and_write(&mut port, afsec_service, &mut middlewares);
@@ -73,16 +80,21 @@ pub async fn database_afsec_process(afsec_service: &mut DatabaseAfsecComm) {
         // Laisse la main...
         tokio::time::sleep(tokio::time::Duration::from_millis(tempo)).await;
 
-        // Gestion des notification_changes pour les `middlewares`
-        check_notification_changes(afsec_service, &mut middlewares);
+        let current_date = Instant::now();
+        let duration = current_date.duration_since(date_last_notification_changes);
+        if duration.as_secs_f32() > DURATION_NOTIFICATION_CHANGES_SECS {
+            date_last_notification_changes = current_date;
+            // Gestion des notification_changes pour les `middlewares`
+            check_notification_changes(afsec_service, &mut middlewares);
+        }
 
         // Laisse la main encore un peu...
-        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        // tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
     }
 }
 
 /// Gestion communication avec l'AFSEC+ sur le port
-/// Retourne une temporisation en millisecondes avec de tenter à nouveau un cycle
+/// Retourne une temporisation en millisecondes avant de tenter à nouveau un cycle
 /// de gestion de la communication avec l'AFSEC+
 fn read_and_write(
     port: &mut SerialStream,
@@ -96,12 +108,12 @@ fn read_and_write(
         // Tentative de lecture (retour n octets lus)
         let n = match port.try_read(&mut buff) {
             Ok(n) => {
-                println!("AFSEC Comm: Read {}  bytes = '{:?}'", n, &buff[..n]);
+                // println!("AFSEC Comm: Read {}  bytes = '{:?}'", n, &buff[..n]);
                 n
             }
-            Err(e) => {
+            Err(_e) => {
                 // println!("AFSEC Comm Got read error: '{e}'");
-                break 1000;
+                0
             }
         };
 
@@ -110,7 +122,7 @@ fn read_and_write(
             match request_raw_frame.get_state() {
                 // Ne doit pas arriver...
                 FrameState::Empty => {
-                    break 100;
+                    break 1;
                 }
 
                 // Trame en cours mais pas encore complète, on continue à lire sur le port
@@ -118,15 +130,15 @@ fn read_and_write(
 
                 // Reçu un message inexploitable... On zappe
                 FrameState::Junk => {
-                    println!("AFSEC Comm: Got junk frame");
-                    break 1000;
+                    println!("AFSEC Comm: Got junk frame '{request_raw_frame}'");
+                    break 1;
                 }
 
                 // Trame correcte reçue. On traite pour répondre...
                 FrameState::Ok => {
                     println!("AFSEC Comm: -> REQ {request_raw_frame}");
                     let response_raw_frame =
-                        middlewares.handle_req_raw_frame(afsec_service, request_raw_frame);
+                        middlewares.handle_request_raw_frame(afsec_service, request_raw_frame);
                     match port.try_write(&response_raw_frame.encode()) {
                         Ok(_n) => {
                             println!("AFSEC Comm: <- REP {response_raw_frame}");
@@ -135,12 +147,12 @@ fn read_and_write(
                             println!("AFSEC Comm: Got error while writing: {e}");
                         }
                     }
-                    break 20;
+                    break 1;
                 }
             }
         } else {
             // Aucune donnée reçue
-            break 100;
+            break 1;
         }
     }
 }

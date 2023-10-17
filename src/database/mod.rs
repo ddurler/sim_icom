@@ -160,6 +160,7 @@ impl Database {
             }
         }
 
+        println!("Database `{filename}` loaded OK");
         db
     }
 
