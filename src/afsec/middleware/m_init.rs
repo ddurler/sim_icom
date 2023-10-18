@@ -9,10 +9,6 @@ use super::{
 pub struct MInit {}
 
 impl CommonMiddlewareTrait for MInit {
-    fn init(&self, _context: &mut Context) {}
-
-    fn init_conversation(&self, _context: &mut Context) {}
-
     fn reset_conversation(&self, _context: &mut Context) {}
 
     fn get_conversation(
@@ -36,83 +32,61 @@ impl CommonMiddlewareTrait for MInit {
                     let version_revision_edition = u32::from(&data_item.t_value);
                     let (version, revision, edition) =
                         id_message::get_version_revision_edition_from_u32(version_revision_edition);
-
-                    // Verrouiller la database partagée
-                    let mut db = afsec_service.thread_db.lock().unwrap();
-                    db.set_u16_to_id_tag(
-                        afsec_service.id_user,
+                    id_message::update_database(
+                        afsec_service,
                         IdTag::new(0, 0x0001, [0, 0, 0]),
-                        version,
+                        TValue::U16(version),
                     );
-                    db.set_u16_to_id_tag(
-                        afsec_service.id_user,
+                    id_message::update_database(
+                        afsec_service,
                         IdTag::new(0, 0x0002, [0, 0, 0]),
-                        revision,
+                        TValue::U16(revision),
                     );
-                    db.set_u16_to_id_tag(
-                        afsec_service.id_user,
+                    id_message::update_database(
+                        afsec_service,
                         IdTag::new(0, 0x0003, [0, 0, 0]),
-                        edition,
+                        TValue::U16(edition),
                     );
                 }
                 id_message::D_APPLI_NUMBER => {
-                    let appli_number = i16::from(&data_item.t_value);
-
-                    // Verrouiller la database partagée
-                    let mut db: std::sync::MutexGuard<'_, crate::database::Database> =
-                        afsec_service.thread_db.lock().unwrap();
-                    db.set_i16_to_id_tag(
-                        afsec_service.id_user,
+                    id_message::update_database(
+                        afsec_service,
                         IdTag::new(0, 0x0010, [0, 0, 0]),
-                        appli_number,
+                        data_item.t_value,
                     );
                 }
                 id_message::D_APPLI_VERSION => {
                     let version_revision_edition = u32::from(&data_item.t_value);
                     let (version, revision, edition) =
                         id_message::get_version_revision_edition_from_u32(version_revision_edition);
-
-                    // Verrouiller la database partagée
-                    let mut db: std::sync::MutexGuard<'_, crate::database::Database> =
-                        afsec_service.thread_db.lock().unwrap();
-                    db.set_u16_to_id_tag(
-                        afsec_service.id_user,
+                    id_message::update_database(
+                        afsec_service,
                         IdTag::new(0, 0x0011, [0, 0, 0]),
-                        version,
+                        TValue::U16(version),
                     );
-                    db.set_u16_to_id_tag(
-                        afsec_service.id_user,
+                    id_message::update_database(
+                        afsec_service,
                         IdTag::new(0, 0x0012, [0, 0, 0]),
-                        revision,
+                        TValue::U16(revision),
                     );
-                    db.set_u16_to_id_tag(
-                        afsec_service.id_user,
+                    id_message::update_database(
+                        afsec_service,
                         IdTag::new(0, 0x0013, [0, 0, 0]),
-                        edition,
+                        TValue::U16(edition),
                     );
                 }
                 id_message::D_APPLI_CONFIG => {
-                    let config = String::from(&data_item.t_value);
-
-                    // Verrouiller la database partagée
-                    let mut db: std::sync::MutexGuard<'_, crate::database::Database> =
-                        afsec_service.thread_db.lock().unwrap();
-                    db.set_string_to_id_tag(
-                        afsec_service.id_user,
+                    id_message::update_database(
+                        afsec_service,
                         IdTag::new(0, 0x0014, [0, 0, 0]),
-                        &config,
+                        data_item.t_value,
                     );
                 }
                 id_message::D_LANGUAGE => {
-                    let lang = String::from(&data_item.t_value);
-
-                    // Verrouiller la database partagée
-                    let mut db: std::sync::MutexGuard<'_, crate::database::Database> =
-                        afsec_service.thread_db.lock().unwrap();
-                    db.set_string_to_id_tag(
-                        afsec_service.id_user,
+                    id_message::update_database(
+                        afsec_service,
                         IdTag::new(1, 0x2042, [0, 0, 0]),
-                        &lang,
+                        data_item.t_value,
                     );
                 }
                 _ => (),
