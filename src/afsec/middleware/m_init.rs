@@ -1,8 +1,8 @@
-//! Pseudo `middleware` pour le traitement `AF_INIT`
+//! `middleware` pour le traitement `AF_INIT`
 
 use super::{
-    id_message, CommonMiddlewareTrait, Context, DataFrame, DataItem, DatabaseAfsecComm, IdTag,
-    IdUser, RawFrame, TFormat, TValue,
+    id_message, utils, CommonMiddlewareTrait, Context, DataFrame, DataItem, DatabaseAfsecComm,
+    IdTag, IdUser, RawFrame, TFormat, TValue,
 };
 
 #[derive(Default)]
@@ -31,25 +31,25 @@ impl CommonMiddlewareTrait for MInit {
                 id_message::D_RESIDENT_VERSION => {
                     let version_revision_edition = u32::from(&data_item.t_value);
                     let (version, revision, edition) =
-                        id_message::get_version_revision_edition_from_u32(version_revision_edition);
-                    id_message::update_database(
+                        utils::get_version_revision_edition_from_u32(version_revision_edition);
+                    utils::update_database(
                         afsec_service,
                         IdTag::new(0, 0x0001, [0, 0, 0]),
                         TValue::U16(version),
                     );
-                    id_message::update_database(
+                    utils::update_database(
                         afsec_service,
                         IdTag::new(0, 0x0002, [0, 0, 0]),
                         TValue::U16(revision),
                     );
-                    id_message::update_database(
+                    utils::update_database(
                         afsec_service,
                         IdTag::new(0, 0x0003, [0, 0, 0]),
                         TValue::U16(edition),
                     );
                 }
                 id_message::D_APPLI_NUMBER => {
-                    id_message::update_database(
+                    utils::update_database(
                         afsec_service,
                         IdTag::new(0, 0x0010, [0, 0, 0]),
                         data_item.t_value,
@@ -58,32 +58,32 @@ impl CommonMiddlewareTrait for MInit {
                 id_message::D_APPLI_VERSION => {
                     let version_revision_edition = u32::from(&data_item.t_value);
                     let (version, revision, edition) =
-                        id_message::get_version_revision_edition_from_u32(version_revision_edition);
-                    id_message::update_database(
+                        utils::get_version_revision_edition_from_u32(version_revision_edition);
+                    utils::update_database(
                         afsec_service,
                         IdTag::new(0, 0x0011, [0, 0, 0]),
                         TValue::U16(version),
                     );
-                    id_message::update_database(
+                    utils::update_database(
                         afsec_service,
                         IdTag::new(0, 0x0012, [0, 0, 0]),
                         TValue::U16(revision),
                     );
-                    id_message::update_database(
+                    utils::update_database(
                         afsec_service,
                         IdTag::new(0, 0x0013, [0, 0, 0]),
                         TValue::U16(edition),
                     );
                 }
                 id_message::D_APPLI_CONFIG => {
-                    id_message::update_database(
+                    utils::update_database(
                         afsec_service,
                         IdTag::new(0, 0x0014, [0, 0, 0]),
                         data_item.t_value,
                     );
                 }
                 id_message::D_LANGUAGE => {
-                    id_message::update_database(
+                    utils::update_database(
                         afsec_service,
                         IdTag::new(1, 0x2042, [0, 0, 0]),
                         data_item.t_value,

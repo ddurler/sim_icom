@@ -1,8 +1,8 @@
-//! Pseudo `middleware` pour le traitement `AF_INIT`
+//! `middleware` pour le traitement `AF_DATA_OUT`
 
 use super::{
-    id_message, CommonMiddlewareTrait, Context, DataFrame, DatabaseAfsecComm, IdTag,
-    IdUser, RawFrame, TValue,
+    id_message, utils, CommonMiddlewareTrait, Context, DataFrame, DatabaseAfsecComm, IdTag, IdUser,
+    RawFrame, TValue,
 };
 
 #[derive(Default)]
@@ -50,10 +50,10 @@ impl CommonMiddlewareTrait for MDataOut {
             // Si on a reçu au moins zone + str5_tag + t_value
             if let Some(zone) = context.option_zone {
                 if let Some(str5_tag) = &context.option_str5_tag {
-                    let id_tag = id_message::get_id_tag_from_zone_str5(zone, str5_tag);
+                    let id_tag = utils::get_id_tag_from_zone_tag_str5(zone, str5_tag);
                     if let Some(t_value) = &context.option_t_value {
                         // Mise à jour de la database
-                        id_message::update_database(afsec_service, id_tag, t_value.clone());
+                        utils::update_database(afsec_service, id_tag, t_value.clone());
                         // RAZ après traitement
                         context.option_str5_tag = None;
                         context.option_t_value = None;

@@ -18,6 +18,8 @@ use super::{DataFrame, DatabaseAfsecComm, RawFrame};
 mod id_message;
 pub use id_message::*;
 
+mod utils;
+
 mod m_init;
 use m_init::MInit;
 
@@ -30,19 +32,17 @@ use m_data_out::MDataOut;
 // pas facile via la structure commune également partagée pour accéder à la `database` de manière
 // exclusive (snif).
 //
-// On simplifie donc en identifiant les `middlewares` par une  énumération de la
-// liste des `middlewares` qu'on génère dynamique à chaque fois qu'on en a besoin...
+// On simplifie donc en identifiant les `middlewares` dans une liste des `middlewares` qu'on génère
+// dynamiquement à chaque fois besoin par `Self::all_middlewares`
 
 /// Identifiant des `middlewares`
-#[derive(Debug, Copy, Clone)]
-enum EnumMiddleware {
-    DataOut,
-}
+/// Il s'agit ici de l'indice du `middleware` dans la liste des `middlewares`
+type IdMiddleware = usize;
 
 /// Structure de contexte commune à tous les `middlewares`
-// ATTENTION : Chaque middleware ne doit pas avoir sa propre structure de données
+// ATTENTION : Chaque `middleware` ne doit pas avoir sa propre structure de données
 // (la liste des `middlewares` est régénérée périodiquement (voir commentaire ci-dessus))
-// => C'est la structure générique `Middlewares` qui peut être utilisée comme `context` pour ce besoin
+// => C'est la structure générique `Context` qui doit être utilisée comme `context` pour ce besoin
 #[derive(Debug, Default)]
 pub struct Context {
     /// Nombre de AF_INIT depuis le début
@@ -100,7 +100,7 @@ pub struct Middlewares {
     context: Context,
 
     /// IDMiddleware en cours de conversation
-    option_cur_middleware: Option<EnumMiddleware>,
+    option_cur_middleware: Option<IdMiddleware>,
 }
 
 impl Middlewares {
@@ -112,53 +112,44 @@ impl Middlewares {
         }
     }
 
+    /// Retourne la liste de tous les `middlewares`
+    fn all_middlewares() -> Vec<Box<dyn CommonMiddlewareTrait>> {
+        vec![Box::<MInit>::default(), Box::<MDataOut>::default()]
+    }
+
     /// Reset conversation de tous les `middlewares`
     fn reset_conversation_all_middlewares(&mut self) {
         println!("AFSEC Comm: reset_conversation_all_middlewares");
-        MDataOut::default().reset_conversation(&mut self.context);
+        for middleware in Self::all_middlewares() {
+            middleware.reset_conversation(&mut self.context);
+        }
     }
 
-    /// Recherche un middleware pour accepter la conversation
+    /// Recherche un `middleware` pour accepter la conversation
+    /// Si un `middleware` accepte la conversation, il retourne sa réponse à faire à l'AFSEC+
+    /// et il est enregistré comme le `middleware` en cours pour converser.
     fn accept_conversation_all_middlewares(
         &mut self,
         afsec_service: &mut DatabaseAfsecComm,
         request_data_frame: &DataFrame,
     ) -> Option<RawFrame> {
-        // DATA_OUT ?
-        if let Some(response_raw_frame) = Self::get_conversation(
-            EnumMiddleware::DataOut,
-            &mut self.context,
-            afsec_service,
-            request_data_frame,
-            false,
-        ) {
-            self.option_cur_middleware = Some(EnumMiddleware::DataOut);
-            return Some(response_raw_frame);
+        for (id_middleware, middleware) in Self::all_middlewares().iter().enumerate() {
+            if let Some(response_raw_frame) = middleware.get_conversation(
+                &mut self.context,
+                afsec_service,
+                request_data_frame,
+                false,
+            ) {
+                self.option_cur_middleware = Some(id_middleware);
+                return Some(response_raw_frame);
+            }
         }
 
         // Personne pour cette conversation
         None
     }
 
-    /// Conversation pour un middleware
-    fn get_conversation(
-        enum_middleware: EnumMiddleware,
-        context: &mut Context,
-        afsec_service: &mut DatabaseAfsecComm,
-        request_data_frame: &DataFrame,
-        is_already_conversing: bool,
-    ) -> Option<RawFrame> {
-        match enum_middleware {
-            EnumMiddleware::DataOut => MDataOut::default().get_conversation(
-                context,
-                afsec_service,
-                request_data_frame,
-                is_already_conversing,
-            ),
-        }
-    }
-
-    /// Dispatch un changement dans la database à tous les middlewares
+    /// Dispatch un changement dans la database à tous les `middlewares`
     pub fn notification_change(
         &mut self,
         afsec_service: &mut DatabaseAfsecComm,
@@ -169,13 +160,15 @@ impl Middlewares {
         println!(
             "AFSEC Comm: notification_change id_user={id_user} id_tag={id_tag}, t_value={t_value}"
         );
-        MDataOut::default().notification_change(
-            &mut self.context,
-            afsec_service,
-            id_user,
-            id_tag,
-            t_value,
-        );
+        for middleware in Self::all_middlewares() {
+            middleware.notification_change(
+                &mut self.context,
+                afsec_service,
+                id_user,
+                id_tag,
+                t_value,
+            );
+        }
     }
 
     /// Traite (public) une requête TLV de l'AFSEC+ (au format `RawFrame`)
@@ -207,7 +200,7 @@ impl Middlewares {
         if request_data_frame.get_tag() == id_message::AF_INIT {
             // L'AFSEC+ annonce une initialisation des communications
 
-            // Reset conversation de tous les middlewares
+            // Reset conversation de tous les `middlewares`
             self.reset_conversation_all_middlewares();
 
             // Traitement AF_INIT
@@ -224,10 +217,10 @@ impl Middlewares {
         }
 
         // Sinon, on regarde si un `middleware` est déjà en cours de conversation
-        if let Some(enum_middleware) = &self.option_cur_middleware {
+        if let Some(id_middleware) = &self.option_cur_middleware {
             // Conversation en cours, on passe la requête à ce `middleware`
-            if let Some(response_raw_frame) = Self::get_conversation(
-                *enum_middleware,
+            let middleware = &Self::all_middlewares()[*id_middleware];
+            if let Some(response_raw_frame) = middleware.get_conversation(
                 &mut self.context,
                 afsec_service,
                 request_data_frame,

@@ -42,7 +42,7 @@ impl DatabaseAfsecComm {
 /// Routine d'un thread en communication avec l'AFSEC+ via un port série.
 pub async fn database_afsec_process(afsec_service: &mut DatabaseAfsecComm) {
     if afsec_service.port_name.to_uppercase() == "FAKE" {
-        println!("AFSEC communication skipped (fake usage)!!!");
+        println!("AFSEC communication skipped (fake usage) !!!");
         return;
     }
 
