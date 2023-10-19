@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use super::TFormat;
+use super::{string_to_vec_u8, vec_u8_to_string, TFormat};
 
 /// Format et conteneur d'une valeur atomique
 #[derive(Clone, Debug)]
@@ -18,8 +18,8 @@ pub enum TValue {
     I64(i64),
     F32(f32),
     F64(f64),
-    /// Longueur max. de la chaîne
-    String(usize, String),
+    /// Longueur max. du `Vec<u8>`
+    VecU8(usize, Vec<u8>),
 }
 
 impl fmt::Display for TValue {
@@ -42,7 +42,7 @@ impl From<&TValue> for TFormat {
             TValue::I64(_) => TFormat::I64,
             TValue::F32(_) => TFormat::F32,
             TValue::F64(_) => TFormat::F64,
-            TValue::String(width, _) => TFormat::String(*width),
+            TValue::VecU8(len, _) => TFormat::VecU8(*len),
         }
     }
 }
@@ -87,7 +87,7 @@ impl From<&TValue> for u64 {
             TValue::I64(value) => u64::try_from(*value).unwrap_or(0),
             TValue::F32(value) => *value as u64,
             TValue::F64(value) => *value as u64,
-            TValue::String(_, value) => value.parse::<u64>().unwrap_or(0),
+            TValue::VecU8(_, value) => vec_u8_to_string(value).parse::<u64>().unwrap_or(0),
         }
     }
 }
@@ -125,7 +125,7 @@ impl From<&TValue> for i64 {
             TValue::I64(value) => *value,
             TValue::F32(value) => *value as i64,
             TValue::F64(value) => *value as i64,
-            TValue::String(_, value) => value.parse::<i64>().unwrap_or(0),
+            TValue::VecU8(_, value) => vec_u8_to_string(value).parse::<i64>().unwrap_or(0),
         }
     }
 }
@@ -158,7 +158,7 @@ impl From<&TValue> for f64 {
             TValue::I64(value) => *value as f64,
             TValue::F32(value) => f64::try_from(*value).unwrap_or(0.0),
             TValue::F64(value) => *value,
-            TValue::String(_, value) => value.parse::<f64>().unwrap_or(0.0),
+            TValue::VecU8(_, value) => vec_u8_to_string(value).parse::<f64>().unwrap_or(0.0),
         }
     }
 }
@@ -183,16 +183,17 @@ impl From<&TValue> for String {
             TValue::I64(value) => format!("{value}"),
             TValue::F32(value) => format!("{value}"),
             TValue::F64(value) => format!("{value}"),
-            TValue::String(width, value) => {
-                let value = value.trim();
-                let value = if value.len() > *width {
-                    // Tronque si trop long
-                    // /!\ format! ne le fait pas...
-                    value[..*width].to_string()
+            TValue::VecU8(len, value) => {
+                let vec_u8 = if value.len() > *len {
+                    value[..*len].to_vec()
                 } else {
-                    value.to_string()
+                    let mut v = value.clone();
+                    while v.len() < *len {
+                        v.push(0);
+                    }
+                    v
                 };
-                format!("{value:width$}")
+                vec_u8_to_string(&vec_u8)
             }
         }
     }
@@ -255,24 +256,43 @@ impl TValue {
     }
 
     #[allow(dead_code)]
-    pub fn to_t_value_string(&self, width: usize) -> Self {
+    pub fn to_t_value_vec_u8(&self, len: usize) -> Self {
         let value = String::from(self);
         let value = value.trim();
-        let value = if value.len() > width {
-            // Tronque si trop long
-            // /!\ format! ne le fait pas...
-            value[..width].to_string()
+        let value = string_to_vec_u8(value);
+        let value = if value.len() >= len {
+            value[..len].to_vec()
         } else {
-            value.to_string()
+            let mut v = value.clone();
+            while v.len() < len {
+                v.push(0);
+            }
+            v
         };
-        TValue::String(width, format!("{value:width$}"))
+        TValue::VecU8(len, value)
     }
 
     #[allow(dead_code)]
-    pub fn string_width(&self) -> usize {
+    pub fn to_vec_u8(&self) -> Vec<u8> {
         match self {
-            TValue::String(width, _) => *width,
-            _ => String::from(self).len(),
+            TValue::Bool(value) => {
+                if *value {
+                    vec![0xFF]
+                } else {
+                    vec![0]
+                }
+            }
+            TValue::U8(value) => value.to_be_bytes().to_vec(),
+            TValue::I8(value) => value.to_be_bytes().to_vec(),
+            TValue::U16(value) => value.to_be_bytes().to_vec(),
+            TValue::I16(value) => value.to_be_bytes().to_vec(),
+            TValue::U32(value) => value.to_be_bytes().to_vec(),
+            TValue::I32(value) => value.to_be_bytes().to_vec(),
+            TValue::U64(value) => value.to_be_bytes().to_vec(),
+            TValue::I64(value) => value.to_be_bytes().to_vec(),
+            TValue::F32(value) => value.to_be_bytes().to_vec(),
+            TValue::F64(value) => value.to_be_bytes().to_vec(),
+            TValue::VecU8(_, value) => value.clone(),
         }
     }
 }
@@ -296,7 +316,7 @@ mod tests {
             (TValue::I64(-1_000_000), TFormat::I64),
             (TValue::F32(-1.23), TFormat::F32),
             (TValue::F64(-1.23), TFormat::F64),
-            (TValue::String(3, "ABC".to_string()), TFormat::String(3)),
+            (TValue::VecU8(3, string_to_vec_u8("ABC")), TFormat::VecU8(3)),
         ] {
             assert_eq!(TFormat::from(&t_value), t_format);
         }
@@ -347,7 +367,7 @@ mod tests {
             TValue::U64(123),
             TValue::F32(123.0),
             TValue::F64(123.0),
-            TValue::String(3, "123".to_string()),
+            TValue::VecU8(3, "123".as_bytes().to_vec()),
         ] {
             assert!(bool::from(&value));
             assert_eq!(u8::from(&value), 123);
@@ -373,7 +393,7 @@ mod tests {
             TValue::I64(-123),
             TValue::F32(-123.0),
             TValue::F64(-123.0),
-            TValue::String(4, "-123".to_string()),
+            TValue::VecU8(4, "-123".as_bytes().to_vec()),
         ] {
             assert!(bool::from(&value));
             assert_eq!(u8::from(&value), 0);
@@ -514,25 +534,26 @@ mod tests {
     #[test]
     fn test_to_t_string() {
         let value = TValue::I32(-1);
-        let value = value.to_t_value_string(10);
+        let value = value.to_t_value_vec_u8(10);
 
         match value {
-            TValue::String(width, value) => {
-                assert_eq!(width, 10);
+            TValue::VecU8(len, value) => {
+                assert_eq!(len, 10);
                 assert_eq!(value.len(), 10);
-                assert!(value.starts_with("-1"));
+                assert!(vec_u8_to_string(&value).starts_with("-1"));
             }
             _ => panic!("Conversion incorrecte en string"),
         };
     }
 
     #[test]
-    fn test_string_width() {
-        for width in 1..10 {
-            let value = TValue::String(width, "TOTO".to_string());
-            assert_eq!(value.string_width(), width);
-            let display = format!("{value}");
-            assert_eq!(display.len(), width);
+    fn test_to_vec_u8() {
+        for (value, vec_u8) in [
+            (TValue::Bool(false), vec![0x00_u8]),
+            (TValue::U16(123), vec![0x00, 123]),
+            (TValue::VecU8(2, vec![0x01, 0x02]), vec![0x01, 0x02]),
+        ] {
+            assert_eq!(value.to_vec_u8(), vec_u8);
         }
     }
 }

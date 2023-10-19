@@ -28,7 +28,7 @@ mod tests {
     use super::*;
     use assert_float_eq::*;
 
-    use crate::t_data::{TFormat, TValue};
+    use crate::t_data::{string_to_vec_u8, TFormat, TValue};
 
     // Les tests suivants sont ceux du fichier `TLVFrame.c` du résident #4000 de l'AFSEC+
 
@@ -50,8 +50,8 @@ mod tests {
         raw_frame
             .try_extend_data_item(&DataItem::new(
                 0x45,
-                TFormat::String(5),
-                TValue::String(5, "ABCDE".to_string()),
+                TFormat::VecU8(5),
+                TValue::VecU8(5, string_to_vec_u8("ABCDE")),
             ))
             .unwrap();
         assert_eq!(
@@ -64,8 +64,37 @@ mod tests {
         assert_eq!(data_frame.get_data_items().len(), 1);
         let data_item = data_frame.get_data_items()[0].clone();
         assert_eq!(data_item.tag, 0x45);
-        assert_eq!(data_item.t_format, TFormat::String(5));
+        assert_eq!(data_item.t_format, TFormat::VecU8(5));
         assert_eq!(String::from(&data_item.t_value), "ABCDE");
+    }
+
+    #[test]
+    fn test_construction_avec_un_vec_u8() {
+        /* Test en + */
+        /* Construction avec un vec_u8 */
+        let mut raw_frame = RawFrame::new_message(0x23);
+        raw_frame
+            .try_extend_data_item(&DataItem::new(
+                0x45,
+                TFormat::VecU8(5),
+                TValue::VecU8(5, vec![0x80, 0x90, 0xA0, 0xC0, 0xF0]),
+            ))
+            .unwrap();
+        assert_eq!(
+            raw_frame.encode(),
+            vec![0x02, 0x23, 0x07, 0x45, 0x85, 0x80, 0x90, 0xA0, 0xC0, 0xF0, 100, 0x03]
+        );
+        assert_eq!(raw_frame.get_state(), FrameState::Ok);
+        let data_frame = DataFrame::try_from(raw_frame).unwrap();
+        assert_eq!(data_frame.get_tag(), 0x23);
+        assert_eq!(data_frame.get_data_items().len(), 1);
+        let data_item = data_frame.get_data_items()[0].clone();
+        assert_eq!(data_item.tag, 0x45);
+        assert_eq!(data_item.t_format, TFormat::VecU8(5));
+        assert_eq!(
+            data_item.t_value.to_vec_u8(),
+            vec![0x80, 0x90, 0xA0, 0xC0, 0xF0]
+        );
     }
 
     #[test]
@@ -75,22 +104,22 @@ mod tests {
         raw_frame
             .try_extend_data_item(&DataItem::new(
                 0x45,
-                TFormat::String(1),
-                TValue::String(1, "X".to_string()),
+                TFormat::VecU8(1),
+                TValue::VecU8(1, string_to_vec_u8("X")),
             ))
             .unwrap();
         raw_frame
             .try_extend_data_item(&DataItem::new(
                 0x67,
-                TFormat::String(1),
-                TValue::String(1, "Y".to_string()),
+                TFormat::VecU8(1),
+                TValue::VecU8(1, string_to_vec_u8("Y")),
             ))
             .unwrap();
         raw_frame
             .try_extend_data_item(&DataItem::new(
                 0x89,
-                TFormat::String(1),
-                TValue::String(1, "Z".to_string()),
+                TFormat::VecU8(1),
+                TValue::VecU8(1, string_to_vec_u8("Z")),
             ))
             .unwrap();
         assert_eq!(
@@ -105,15 +134,15 @@ mod tests {
         assert_eq!(data_frame.get_data_items().len(), 3);
         let data_item = data_frame.get_data_items()[0].clone();
         assert_eq!(data_item.tag, 0x45);
-        assert_eq!(data_item.t_format, TFormat::String(1));
+        assert_eq!(data_item.t_format, TFormat::VecU8(1));
         assert_eq!(String::from(&data_item.t_value), "X");
         let data_item = data_frame.get_data_items()[1].clone();
         assert_eq!(data_item.tag, 0x67);
-        assert_eq!(data_item.t_format, TFormat::String(1));
+        assert_eq!(data_item.t_format, TFormat::VecU8(1));
         assert_eq!(String::from(&data_item.t_value), "Y");
         let data_item = data_frame.get_data_items()[2].clone();
         assert_eq!(data_item.tag, 0x89);
-        assert_eq!(data_item.t_format, TFormat::String(1));
+        assert_eq!(data_item.t_format, TFormat::VecU8(1));
         assert_eq!(String::from(&data_item.t_value), "Z");
     }
 
@@ -393,8 +422,8 @@ mod tests {
             /* Data max len=250 */
             if let Ok(()) = raw_frame.try_extend_data_item(&DataItem::new(
                 0x01,
-                TFormat::String(26),
-                TValue::String(26, "ABCDEFGHIJKLMNOPQRSTUVWXYZ".to_string()),
+                TFormat::VecU8(26),
+                TValue::VecU8(26, string_to_vec_u8("ABCDEFGHIJKLMNOPQRSTUVWXYZ")),
             )) {
             } else {
                 b_overflow = true;
@@ -612,7 +641,7 @@ mod tests {
     #[test]
     fn test_conversion_string_positif() {
         /* Conversion d'une string (entier positif) */
-        let t_value = TValue::String(3, "123".to_string());
+        let t_value = TValue::VecU8(3, string_to_vec_u8("123"));
         assert!(bool::from(&t_value));
         assert_eq!(u8::from(&t_value), 123);
         assert_eq!(i8::from(&t_value), 123);
@@ -628,7 +657,7 @@ mod tests {
     #[test]
     fn test_conversion_string_negative() {
         /* Conversion d'une string (entier negatif) */
-        let t_value = TValue::String(4, "-123".to_string());
+        let t_value = TValue::VecU8(4, string_to_vec_u8("-123"));
         assert!(bool::from(&t_value));
         assert_eq!(u8::from(&t_value), 0); // 0x85 dans la version AFSEC+
         assert_eq!(i8::from(&t_value), -123);

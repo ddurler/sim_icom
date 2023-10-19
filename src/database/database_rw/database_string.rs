@@ -1,4 +1,5 @@
 //! Accès aux données au format `String` dans la [`Database`]
+//! (Le format `String` est un cas particulier du format `Vec<u8>`)
 
 #[cfg(test)]
 use super::{Tag, ID_ANONYMOUS_USER};

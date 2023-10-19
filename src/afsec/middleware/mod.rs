@@ -57,8 +57,8 @@ pub struct Context {
     /// `TABLE_INDEX` de la conversation en cours
     option_table_index: Option<u64>,
 
-    /// `Tag` de la conversation en cours (string 5 = U16 + 3 x U8)
-    option_str5_tag: Option<String>,
+    /// `Tag` de la conversation en cours (`Vec<u8>` de 5 = U16 + 3 x U8)
+    option_vec_u8_tag: Option<Vec<u8>>,
 
     /// `TValue` de la conversation en cours
     option_t_value: Option<TValue>,

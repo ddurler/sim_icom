@@ -1,5 +1,7 @@
 //! Module pour la gestion des différents formats dans la [`Database`]
 
+use crate::t_data::string_to_vec_u8;
+
 #[cfg(test)]
 use super::ID_ANONYMOUS_USER;
 
@@ -17,6 +19,7 @@ mod database_u16;
 mod database_u32;
 mod database_u64;
 mod database_u8;
+mod database_vec_u8;
 
 impl Database {
     /// Ecrire la [`Database`] avec une valeur (String) par défaut
@@ -78,15 +81,18 @@ impl Database {
                     self.set_f64_to_word_address(id_user, word_address, value);
                 }
             }
-            TFormat::String(width) => {
-                let value = if value.len() > width {
-                    // Tronque si trop long
-                    // /!\ format! ne le fait pas...
-                    value[..width].to_string()
+            TFormat::VecU8(len) => {
+                let value = value.as_bytes().to_vec();
+                let value = if value.len() >= len {
+                    value[..len].to_vec()
                 } else {
-                    format!("{value:width$}")
+                    let mut v = value.clone();
+                    while v.len() < len {
+                        v.push(0);
+                    }
+                    v
                 };
-                self.set_string_to_word_address(id_user, word_address, &value);
+                self.set_vec_u8_to_word_address(id_user, word_address, &value);
             }
             TFormat::Unknown => (),
         }
@@ -107,11 +113,11 @@ impl Database {
             TFormat::I64 => TValue::I64(self.get_i64_from_word_address(id_user, word_address)),
             TFormat::F32 => TValue::F32(self.get_f32_from_word_address(id_user, word_address)),
             TFormat::F64 => TValue::F64(self.get_f64_from_word_address(id_user, word_address)),
-            TFormat::String(width) => TValue::String(
-                width,
-                self.get_string_from_word_address(id_user, word_address, width),
+            TFormat::VecU8(len) => TValue::VecU8(
+                len,
+                self.get_vec_u8_from_word_address(id_user, word_address, len),
             ),
-            TFormat::Unknown => TValue::String(3, "???".to_string()),
+            TFormat::Unknown => TValue::VecU8(3, string_to_vec_u8("???")),
         }
     }
 
@@ -129,6 +135,14 @@ impl Database {
         }
 
         ret
+    }
+
+    /// Copie un `&[u8]` dans la [`Database`] selon [`IdTag`]
+    /// (Helper pour le `TValue::String`)
+    pub fn set_vec_u8_to_id_tag(&mut self, id_user: IdUser, id_tag: IdTag, value: &[u8]) {
+        if let Some(id_tag) = self.get_tag_from_id_tag(id_tag) {
+            self.set_vec_u8_to_word_address(id_user, id_tag.word_address, value);
+        }
     }
 
     /// Copie un `&[u8]` dans la [`Database`] selon [`WordAddress`]
@@ -151,5 +165,82 @@ impl Database {
         for tag in tags {
             self.user_write_tag(id_user, &tag);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use assert_float_eq::*;
+
+    use super::*;
+
+    #[test]
+    #[allow(clippy::similar_names)]
+    fn test_set_value() {
+        let mut db = Database::default();
+
+        // Création d'un tag U16
+        let tag_u16 = Tag {
+            word_address: 0x0010,
+            id_tag: IdTag::new(1, 1, [0, 0, 0]),
+            t_format: TFormat::U16,
+            ..Default::default()
+        };
+        db.add_tag(&tag_u16);
+
+        // Création d'un tag I16
+        let tag_i16 = Tag {
+            word_address: 0x0020,
+            id_tag: IdTag::new(2, 2, [0, 0, 0]),
+            t_format: TFormat::I16,
+            ..Default::default()
+        };
+        db.add_tag(&tag_i16);
+
+        // Création d'un tag f32
+        let tag_f32 = Tag {
+            word_address: 0x0030,
+            id_tag: IdTag::new(3, 3, [0, 0, 0]),
+            t_format: TFormat::F32,
+            ..Default::default()
+        };
+        db.add_tag(&tag_f32);
+
+        // Création d'un tag VecU8(5)
+        let tag_vec_u8 = Tag {
+            word_address: 0x0040,
+            id_tag: IdTag::new(4, 4, [0, 0, 0]),
+            t_format: TFormat::VecU8(5),
+            ..Default::default()
+        };
+        db.add_tag(&tag_vec_u8);
+
+        // Init de tag_u16
+        db.set_value(ID_ANONYMOUS_USER, &tag_u16, "123");
+        assert_eq!(
+            db.get_u16_from_id_tag(ID_ANONYMOUS_USER, tag_u16.id_tag),
+            123
+        );
+
+        // Init de tag_i16
+        db.set_value(ID_ANONYMOUS_USER, &tag_i16, "-123");
+        assert_eq!(
+            db.get_i16_from_id_tag(ID_ANONYMOUS_USER, tag_i16.id_tag),
+            -123
+        );
+
+        // Init de tag_f32
+        db.set_value(ID_ANONYMOUS_USER, &tag_f32, "-123.4");
+        assert_f32_near!(
+            db.get_f32_from_id_tag(ID_ANONYMOUS_USER, tag_f32.id_tag),
+            -123.4
+        );
+
+        // Init de tag_vec_u8
+        db.set_value(ID_ANONYMOUS_USER, &tag_vec_u8, "TOTO");
+        assert_eq!(
+            db.get_vec_u8_from_id_tag(ID_ANONYMOUS_USER, tag_vec_u8.id_tag, 5),
+            vec![b'T', b'O', b'T', b'O', 0x00]
+        );
     }
 }

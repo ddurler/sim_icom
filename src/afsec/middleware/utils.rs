@@ -15,9 +15,9 @@ pub fn get_version_revision_edition_from_u32(version_revision_edition: u32) -> (
 
 /// Helper pour convertir une `zone` + `tag_str5` en `IdTag`
 #[allow(clippy::cast_lossless)]
-pub fn get_id_tag_from_zone_tag_str5(zone: u8, tag_str5: &str) -> IdTag {
-    // Converti le tag_str5 en un Vec<u8> d'au moins 5 éléments
-    let mut vec_u8 = tag_str5.as_bytes().to_vec();
+pub fn get_id_tag_from_zone_vec_u8_tag(zone: u8, vec_u8_tag: &[u8]) -> IdTag {
+    // Converti le vec_u8_tag en un Vec<u8> d'au moins 5 éléments
+    let mut vec_u8 = vec_u8_tag.to_vec();
     while vec_u8.len() < 5 {
         vec_u8.push(0);
     }
@@ -47,7 +47,7 @@ pub fn update_database(afsec_service: &mut DatabaseAfsecComm, id_tag: IdTag, t_v
         TValue::I64(value) => db.set_i64_to_id_tag(afsec_service.id_user, id_tag, value),
         TValue::F32(value) => db.set_f32_to_id_tag(afsec_service.id_user, id_tag, value),
         TValue::F64(value) => db.set_f64_to_id_tag(afsec_service.id_user, id_tag, value),
-        TValue::String(_, value) => db.set_string_to_id_tag(afsec_service.id_user, id_tag, &value),
+        TValue::VecU8(_, value) => db.set_vec_u8_to_id_tag(afsec_service.id_user, id_tag, &value),
     }
 }
 
@@ -72,11 +72,11 @@ mod tests {
     }
 
     #[test]
-    fn test_get_id_tag_from_zone_tag_str5() {
+    fn test_get_id_tag_from_zone_vec_u8_tag() {
         let zone = 1_u8;
-        let tag_str5 = String::from_utf8(vec![0x12, 0x23, 0x34, 0x45, 0x56]).unwrap();
+        let vec_u8_tag = vec![0x12, 0x23, 0x34, 0x45, 0x56];
 
-        let id_tag = get_id_tag_from_zone_tag_str5(zone, &tag_str5);
+        let id_tag = get_id_tag_from_zone_vec_u8_tag(zone, &vec_u8_tag);
 
         assert_eq!(id_tag, IdTag::new(zone, 0x1223, [0x34, 0x45, 0x56]));
     }

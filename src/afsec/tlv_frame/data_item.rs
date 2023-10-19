@@ -97,7 +97,9 @@ impl DataItem {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
+    use crate::t_data::string_to_vec_u8;
 
     #[test]
     fn test_encode_decode() {
@@ -113,8 +115,9 @@ mod tests {
             TValue::I64(-1_000_000),
             TValue::F32(-1.23),
             TValue::F64(-1.23),
-            TValue::String(3, "ABC".to_string()),
-            TValue::String(0, String::new()),
+            TValue::VecU8(0, vec![]),
+            TValue::VecU8(3, string_to_vec_u8("ABC")),
+            TValue::VecU8(1, "é".as_bytes().to_vec()),
         ] {
             let tag = 12;
             let t_format = TFormat::from(&t_value);
@@ -136,11 +139,20 @@ mod tests {
         let test_data_items = vec![
             DataItem::new(1, TFormat::Bool, TValue::Bool(true)),
             DataItem::new(2, TFormat::U16, TValue::U16(123)),
-            DataItem::new(3, TFormat::String(3), TValue::String(3, "ABC".to_string())),
+            DataItem::new(
+                3,
+                TFormat::VecU8(3),
+                TValue::VecU8(3, string_to_vec_u8("ABC")),
+            ),
             DataItem::new(4, TFormat::F32, TValue::F32(1.23)),
-            DataItem::new(5, TFormat::I16, TValue::I16(-123)),
-            DataItem::new(6, TFormat::String(0), TValue::String(0, String::new())),
-            DataItem::new(7, TFormat::I64, TValue::I64(-1_000_000_000)),
+            DataItem::new(
+                5,
+                TFormat::VecU8(3),
+                TValue::VecU8(3, vec![0xFF, 0x00, 0xFF]),
+            ),
+            DataItem::new(6, TFormat::I16, TValue::I16(-123)),
+            DataItem::new(7, TFormat::VecU8(0), TValue::VecU8(0, vec![])),
+            DataItem::new(8, TFormat::I64, TValue::I64(-1_000_000_000)),
         ];
 
         // Création d'un Vec<u8> contenant tous les test_data_items

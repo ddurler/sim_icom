@@ -12,7 +12,7 @@
 //! * 0x48 = i64
 //! * 0x64 = f32
 //! * 0x68 = f64
-//! * 0x81 à FF = String(1-127)
+//! * 0x80 à FF = VecU8(0-127)
 
 use std::fmt;
 
@@ -32,7 +32,7 @@ pub enum TFormat {
     I64,
     F32,
     F64,
-    String(usize),
+    VecU8(usize),
 }
 
 impl fmt::Display for TFormat {
@@ -50,7 +50,7 @@ impl fmt::Display for TFormat {
             TFormat::I64 => write!(f, "I64"),
             TFormat::F32 => write!(f, "F32"),
             TFormat::F64 => write!(f, "F64"),
-            TFormat::String(width) => write!(f, "String({width})"),
+            TFormat::VecU8(len) => write!(f, "VecU8({len})"),
         }
     }
 }
@@ -69,7 +69,7 @@ impl From<u8> for TFormat {
             0x48 => TFormat::I64,
             0x64 => TFormat::F32,
             0x68 => TFormat::F64,
-            n @ 0x80..=0xFF => TFormat::String((n - 0x80) as usize),
+            n @ 0x80..=0xFF => TFormat::VecU8((n - 0x80) as usize),
             _ => TFormat::Unknown,
         }
     }
@@ -90,7 +90,7 @@ impl From<TFormat> for u8 {
             TFormat::I64 => 0x48,
             TFormat::F32 => 0x64,
             TFormat::F64 => 0x68,
-            TFormat::String(n) => {
+            TFormat::VecU8(n) => {
                 if (0..=127).contains(&n) {
                     0x80 + u8::try_from(n).unwrap()
                 } else {
@@ -112,7 +112,7 @@ impl TFormat {
             TFormat::U16 | TFormat::I16 => 2,
             TFormat::U32 | TFormat::I32 | TFormat::F32 => 4,
             TFormat::U64 | TFormat::I64 | TFormat::F64 => 8,
-            TFormat::String(n) => *n,
+            TFormat::VecU8(n) => *n,
         }
     }
 
@@ -125,7 +125,7 @@ impl TFormat {
             TFormat::U8 | TFormat::Bool | TFormat::I8 | TFormat::U16 | TFormat::I16 => 1,
             TFormat::U32 | TFormat::I32 | TFormat::F32 => 2,
             TFormat::U64 | TFormat::I64 | TFormat::F64 => 4,
-            TFormat::String(n) => {
+            TFormat::VecU8(n) => {
                 if (1..=127).contains(n) {
                     (*n + 1) / 2
                 } else {
@@ -155,8 +155,8 @@ mod tests {
             TFormat::I64,
             TFormat::F32,
             TFormat::F64,
-            TFormat::String(1),
-            TFormat::String(10),
+            TFormat::VecU8(1),
+            TFormat::VecU8(10),
         ] {
             let format_u8 = u8::from(t_format);
             assert_eq!(t_format, TFormat::from(format_u8));
@@ -178,8 +178,8 @@ mod tests {
             TFormat::I64,
             TFormat::F32,
             TFormat::F64,
-            TFormat::String(1),
-            TFormat::String(10),
+            TFormat::VecU8(1),
+            TFormat::VecU8(10),
         ] {
             let nb_bytes = w_format.nb_bytes();
             let nb_words = w_format.nb_words();

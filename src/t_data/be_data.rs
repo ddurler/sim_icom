@@ -13,7 +13,7 @@ pub fn decode(t_format: TFormat, vec_u8: &[u8]) -> Result<TValue, &'static str> 
     } else {
         let vec_u8 = vec_u8.to_vec();
         Ok(match t_format {
-            TFormat::Unknown => TValue::String(0, String::new()),
+            TFormat::Unknown => TValue::VecU8(0, vec![]),
             TFormat::Bool => TValue::Bool(vec_u8[0] != 0),
             TFormat::U8 => TValue::U8(vec_u8[0]),
             TFormat::I8 => TValue::I8(vec_u8[0] as i8),
@@ -57,7 +57,7 @@ pub fn decode(t_format: TFormat, vec_u8: &[u8]) -> Result<TValue, &'static str> 
                 let vec_u8: [u8; 8] = vec_u8.try_into().unwrap();
                 TValue::F64(f64::from_be_bytes(vec_u8))
             }
-            TFormat::String(n) => TValue::String(n, String::from_utf8_lossy(&vec_u8).into()),
+            TFormat::VecU8(n) => TValue::VecU8(n, vec_u8.clone()),
         })
     }
 }
@@ -83,12 +83,14 @@ pub fn encode(t_value: &TValue) -> Vec<u8> {
         TValue::I64(value) => value.to_be_bytes().to_vec(),
         TValue::F32(value) => value.to_be_bytes().to_vec(),
         TValue::F64(value) => value.to_be_bytes().to_vec(),
-        TValue::String(_, value) => value.as_bytes().to_vec(),
+        TValue::VecU8(_, value) => value.clone(),
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::t_data::string_to_vec_u8;
+
     use super::*;
 
     #[test]
@@ -105,7 +107,8 @@ mod tests {
             TValue::I64(-1_000_000),
             TValue::F32(-1.23),
             TValue::F64(-1.23),
-            TValue::String(3, "ABC".to_string()),
+            TValue::VecU8(3, string_to_vec_u8("ABC")),
+            TValue::VecU8(3, vec![0xFF, 0xFF, 0xFF]),
         ] {
             let t_format = TFormat::from(&t_value);
             let vec_u8 = encode(&t_value);
