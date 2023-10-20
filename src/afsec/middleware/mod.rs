@@ -12,6 +12,7 @@
 //! * `AF_INIT` / `IC_INIT`: Détecté par `handle_request_data_frame`, pris en charge par le middleware `MInit`
 //! * `AF_DATA_OUT` / `IC_DATA_OUT`: pris en charge par le middleware `MDataOut`
 //! * `AF_DATA_IN` / `IC_DATA_IN`: pris en charge par le middleware `MDataIn`
+//! * `AF_DATA_OUT_TABLE_INDEX` / `IC_DATA_OUT_TABLE_INDEX`: pris en charge par le middleware `MDataOutTableIndex`
 
 use crate::{
     afsec::tlv_frame::DataItem,
@@ -38,8 +39,11 @@ use m_data_out::MDataOut;
 mod m_data_in;
 use m_data_in::MDataIn;
 
-// Pour bien faire, il faudrait implémenter des `middlewares` qu'on peut désigner dynamiquement
-// par `&dyn CommonMiddlewareTrait`.
+mod m_data_out_table_index;
+use m_data_out_table_index::MDataOutTableIndex;
+
+// On implémente des `middlewares` qu'on peut désigner dynamiquement par `&dyn CommonMiddlewareTrait`.
+//
 // Mais cette solution nécessite de gérer la `lifetime` des différents `middlewares` ce qui n'est
 // pas facile via la structure commune également partagée pour accéder à la `database` de manière
 // exclusive (snif).
@@ -139,6 +143,7 @@ impl Middlewares {
             // Box::<MInit>::default(),  // Construit sur demande `AF_INIT`
             Box::<MDataOut>::default(),
             Box::<MDataIn>::default(),
+            Box::<MDataOutTableIndex>::default(),
         ]
     }
 
