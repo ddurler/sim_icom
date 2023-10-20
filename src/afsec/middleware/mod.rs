@@ -6,6 +6,11 @@
 //!
 //! La prise en charge d'une conversation particulière est assumée par un `middleware`
 //! qui gère le `contexte` de la conversation et sait répondre aux requêtes de l'AFSEC+
+//!
+//! Messages:
+//! * `AF_ALIVE` / `IC_ALIVE` : Pris en charge par `handle_request_data_frame`
+//! * `AF_INIT` / `IC_INIT` : Détecté par `handle_request_data_frame`, pris en charge par le middleware `MInit`
+//! * `AF_DATA_OUT` / `IC_DATA_OUT` : pris en charge par le middleware `MDataOut`
 
 use crate::{
     afsec::tlv_frame::DataItem,
@@ -19,6 +24,9 @@ mod id_message;
 pub use id_message::*;
 
 mod utils;
+
+mod records;
+use records::RecordData;
 
 mod m_init;
 use m_init::MInit;
@@ -62,6 +70,9 @@ pub struct Context {
 
     /// `TValue` de la conversation en cours
     option_t_value: Option<TValue>,
+
+    /// `RecordData` vus pendant la conversation
+    record_datas: Vec<RecordData>,
 }
 
 /// Trait à implémenter pour chaque `middleware`

@@ -1,5 +1,7 @@
 //! `middleware` pour le traitement `AF_DATA_OUT`
 
+use crate::afsec::middleware::records::RecordData;
+
 use super::{
     id_message, utils, CommonMiddlewareTrait, Context, DataFrame, DatabaseAfsecComm, IdTag, IdUser,
     RawFrame, TValue,
@@ -11,8 +13,10 @@ pub struct MDataOut {}
 impl CommonMiddlewareTrait for MDataOut {
     fn reset_conversation(&self, context: &mut Context) {
         // Table index et le numéro de zone sont contextuels et peuvent être valides pour plusieurs trames
-        context.option_table_index = None;
-        context.option_zone = None;
+        context.option_vec_u8_tag = None;
+        context.option_t_value = None;
+        // Sauvegarde des données des enregistrements (si existent)
+        RecordData::collect_record_datas(context);
     }
 
     fn get_conversation(
@@ -50,13 +54,19 @@ impl CommonMiddlewareTrait for MDataOut {
                 _ => (),
             }
 
-            // Si on a reçu au moins zone + str5_tag + t_value
+            // Si on a reçu au moins zone + vec_u8_tag + t_value
             if let Some(zone) = context.option_zone {
                 if let Some(vec_u8_tag) = &context.option_vec_u8_tag {
                     let id_tag = utils::get_id_tag_from_zone_vec_u8_tag(zone, vec_u8_tag);
                     if let Some(t_value) = &context.option_t_value {
-                        // Mise à jour de la database
-                        utils::update_database(afsec_service, id_tag, t_value.clone());
+                        if let Some(table_index) = context.option_table_index {
+                            // Avec un `table index`, on est dans la mise à jour d'un enregistrement
+                            let record = RecordData::new(table_index, id_tag, t_value);
+                            utils::add_record(context, record);
+                        } else {
+                            // Mise à jour de la database
+                            utils::update_database(afsec_service, id_tag, t_value.clone());
+                        }
                         // RAZ après traitement
                         context.option_vec_u8_tag = None;
                         context.option_t_value = None;

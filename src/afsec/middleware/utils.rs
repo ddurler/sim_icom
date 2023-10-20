@@ -1,6 +1,11 @@
 //! Helpers pour les `middlewares`
 
-use super::{DatabaseAfsecComm, IdTag, TValue};
+use super::{Context, DatabaseAfsecComm, IdTag, RecordData, TValue};
+
+/// Indique s'il s'agit d'un tag `END_OF_RECORD` pour les enregistrements
+fn is_id_tag_end_of_record(id_tag: IdTag) -> bool {
+    id_tag.num_tag == 0x7210
+}
 
 /// Helper pour découper un u32 en 10000 * version + 100 * revision + edition
 pub fn get_version_revision_edition_from_u32(version_revision_edition: u32) -> (u16, u16, u16) {
@@ -48,6 +53,16 @@ pub fn update_database(afsec_service: &mut DatabaseAfsecComm, id_tag: IdTag, t_v
         TValue::F32(value) => db.set_f32_to_id_tag(afsec_service.id_user, id_tag, value),
         TValue::F64(value) => db.set_f64_to_id_tag(afsec_service.id_user, id_tag, value),
         TValue::VecU8(_, value) => db.set_vec_u8_to_id_tag(afsec_service.id_user, id_tag, &value),
+    }
+}
+
+/// Helper pour l'ajout d'une donnée d'un enregistrement d'un table
+pub fn add_record(context: &mut Context, record: RecordData) {
+    if is_id_tag_end_of_record(record.id_tag) {
+        println!("AFSEC Comm: Got END_OF_RECORD");
+        RecordData::collect_record_datas(context);
+    } else {
+        context.record_datas.push(record);
     }
 }
 
