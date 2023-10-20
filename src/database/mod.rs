@@ -121,7 +121,7 @@ impl Database {
         let mut file = match File::open(filename) {
             Ok(f) => f,
             Err(e) => {
-                eprintln!("\nErreur ouverture du fichier '{filename}' : {e}\n");
+                eprintln!("\nErreur ouverture du fichier '{filename}': {e}\n");
                 std::process::exit(1);
             }
         };
@@ -129,7 +129,7 @@ impl Database {
         match file.read_to_end(&mut buf) {
             Ok(_) => (),
             Err(e) => {
-                eprintln!("\nErreur lecture du fichier '{filename}' : {e}\n");
+                eprintln!("\nErreur lecture du fichier '{filename}': {e}\n");
                 std::process::exit(1);
             }
         };
@@ -149,12 +149,7 @@ impl Database {
                     }
                 }
                 Err(msg) => {
-                    eprintln!(
-                        "\nErreur fichier '{}', line {} : {}\n",
-                        filename,
-                        n + 1,
-                        msg
-                    );
+                    eprintln!("\nErreur fichier '{}', line {}: {}\n", filename, n + 1, msg);
                     std::process::exit(1);
                 }
             }

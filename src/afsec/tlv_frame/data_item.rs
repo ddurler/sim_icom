@@ -5,9 +5,9 @@
 //!
 //! A noter que ce type de donnée n'existe pas pour un message simple tel que ACK ou NACK
 //!
-//! Un `DataItem` est également un triplet Tag + Length + Value où :
+//! Un `DataItem` est également un triplet Tag + Length + Value où:
 //!
-//! * Tag : Caractérise la donnée
+//! * Tag caractérise la donnée
 //! * Length est le type de la donnée (qui induit sa longueur). C'est un [`TFormat`]
 //! * Value de la donnée. C'est un [`TValue`]
 

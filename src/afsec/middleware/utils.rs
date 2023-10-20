@@ -8,7 +8,7 @@ fn is_id_tag_end_of_record(id_tag: IdTag) -> bool {
 }
 
 /// Helper pour découper un u32 en 10000 * version + 100 * revision + edition
-pub fn get_version_revision_edition_from_u32(version_revision_edition: u32) -> (u16, u16, u16) {
+pub fn u32_to_version_revision_edition(version_revision_edition: u32) -> (u16, u16, u16) {
     let edition = version_revision_edition % 100;
     let version_revision_edition = version_revision_edition / 100;
     let revision = version_revision_edition % 100;
@@ -20,7 +20,7 @@ pub fn get_version_revision_edition_from_u32(version_revision_edition: u32) -> (
 
 /// Helper pour convertir une `zone` + `tag_str5` en `IdTag`
 #[allow(clippy::cast_lossless)]
-pub fn get_id_tag_from_zone_vec_u8_tag(zone: u8, vec_u8_tag: &[u8]) -> IdTag {
+pub fn zone_vec_u8_tag_to_id_tag(zone: u8, vec_u8_tag: &[u8]) -> IdTag {
     // Converti le vec_u8_tag en un Vec<u8> d'au moins 5 éléments
     let mut vec_u8 = vec_u8_tag.to_vec();
     while vec_u8.len() < 5 {
@@ -29,6 +29,19 @@ pub fn get_id_tag_from_zone_vec_u8_tag(zone: u8, vec_u8_tag: &[u8]) -> IdTag {
     // Création de l'IdTag correspondant
     let tag = vec_u8[0] as u16 * 256 + vec_u8[1] as u16;
     IdTag::new(zone, tag, [vec_u8[2], vec_u8[3], vec_u8[4]])
+}
+
+// Helper pour convertir un `tag_num` + `indices` en un `Vec<u>` de 5 'u8'
+pub fn tag_num_indices_to_vec_u8(
+    num_tag: u16,
+    indice_0: u8,
+    indice_1: u8,
+    indice_2: u8,
+) -> Vec<u8> {
+    let mut vec_u8 = vec![];
+    vec_u8.extend(num_tag.to_be_bytes());
+    vec_u8.extend([indice_0, indice_1, indice_2]);
+    vec_u8
 }
 
 /// Helper pour mettre à jour la `Database`
@@ -72,7 +85,7 @@ mod tests {
 
     #[test]
     #[allow(clippy::cast_lossless)]
-    fn test_get_version_revision_edition_from_u32() {
+    fn test_u32_to_version_revision_edition() {
         let version = 1_u16;
         let revision = 2_u16;
         let edition = 3_u16;
@@ -81,18 +94,26 @@ mod tests {
             version as u32 * 10_000 + revision as u32 * 100 + edition as u32;
 
         assert_eq!(
-            get_version_revision_edition_from_u32(version_revision_edition),
+            u32_to_version_revision_edition(version_revision_edition),
             (version, revision, edition)
         );
     }
 
     #[test]
-    fn test_get_id_tag_from_zone_vec_u8_tag() {
+    fn test_zone_vec_u8_tag_to_id_tag() {
         let zone = 1_u8;
         let vec_u8_tag = vec![0x12, 0x23, 0x34, 0x45, 0x56];
 
-        let id_tag = get_id_tag_from_zone_vec_u8_tag(zone, &vec_u8_tag);
+        let id_tag = zone_vec_u8_tag_to_id_tag(zone, &vec_u8_tag);
 
         assert_eq!(id_tag, IdTag::new(zone, 0x1223, [0x34, 0x45, 0x56]));
+    }
+
+    #[test]
+    fn test_tag_num_indices_to_vec_u8() {
+        assert_eq!(
+            tag_num_indices_to_vec_u8(0x0123, 0x45, 0x67, 0x89),
+            vec![0x01, 0x23, 0x45, 0x67, 0x89]
+        );
     }
 }

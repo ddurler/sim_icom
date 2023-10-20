@@ -1,6 +1,6 @@
 //! Codage et format d'une donnée de la database sur un octet
 //!
-//! * 0x00 : Pas de format connu
+//! * 0x00 = Pas de format connu
 //! * 0x01 = u8
 //! * 0x11 = Booléen
 //! * 0x02 = u16

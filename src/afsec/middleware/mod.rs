@@ -8,9 +8,10 @@
 //! qui gère le `contexte` de la conversation et sait répondre aux requêtes de l'AFSEC+
 //!
 //! Messages:
-//! * `AF_ALIVE` / `IC_ALIVE` : Pris en charge par `handle_request_data_frame`
-//! * `AF_INIT` / `IC_INIT` : Détecté par `handle_request_data_frame`, pris en charge par le middleware `MInit`
-//! * `AF_DATA_OUT` / `IC_DATA_OUT` : pris en charge par le middleware `MDataOut`
+//! * `AF_ALIVE` / `IC_ALIVE`: Pris en charge par `handle_request_data_frame`
+//! * `AF_INIT` / `IC_INIT`: Détecté par `handle_request_data_frame`, pris en charge par le middleware `MInit`
+//! * `AF_DATA_OUT` / `IC_DATA_OUT`: pris en charge par le middleware `MDataOut`
+//! * `AF_DATA_IN` / `IC_DATA_IN`: pris en charge par le middleware `MDataIn`
 
 use crate::{
     afsec::tlv_frame::DataItem,
@@ -34,6 +35,9 @@ use m_init::MInit;
 mod m_data_out;
 use m_data_out::MDataOut;
 
+mod m_data_in;
+use m_data_in::MDataIn;
+
 // Pour bien faire, il faudrait implémenter des `middlewares` qu'on peut désigner dynamiquement
 // par `&dyn CommonMiddlewareTrait`.
 // Mais cette solution nécessite de gérer la `lifetime` des différents `middlewares` ce qui n'est
@@ -48,7 +52,7 @@ use m_data_out::MDataOut;
 type IdMiddleware = usize;
 
 /// Structure de contexte commune à tous les `middlewares`
-// ATTENTION : Chaque `middleware` ne doit pas avoir sa propre structure de données
+// ATTENTION: Chaque `middleware` ne doit pas avoir sa propre structure de données
 // (la liste des `middlewares` est régénérée périodiquement (voir commentaire ci-dessus))
 // => C'est la structure générique `Context` qui doit être utilisée comme `context` pour ce besoin
 #[derive(Debug, Default)]
@@ -58,6 +62,9 @@ pub struct Context {
 
     /// Nombre de AF_DATA_OUT depuis le début
     nb_data_out: usize,
+
+    /// Nombre de AF_DATA_IN depuis le début
+    nb_data_in: usize,
 
     /// Numéro de zone de la conversation en cours
     option_zone: Option<u8>,
@@ -71,8 +78,11 @@ pub struct Context {
     /// `TValue` de la conversation en cours
     option_t_value: Option<TValue>,
 
-    /// `RecordData` vus pendant la conversation
+    /// `RecordData` vus pendant la conversation DATA_OUT
     record_datas: Vec<RecordData>,
+
+    /// Liste des notification_changes pour la conversation DATA_IN
+    notification_changes: Vec<(IdTag, TValue)>,
 }
 
 /// Trait à implémenter pour chaque `middleware`
@@ -125,7 +135,11 @@ impl Middlewares {
 
     /// Retourne la liste de tous les `middlewares`
     fn all_middlewares() -> Vec<Box<dyn CommonMiddlewareTrait>> {
-        vec![Box::<MInit>::default(), Box::<MDataOut>::default()]
+        vec![
+            // Box::<MInit>::default(),  // Construit sur demande `AF_INIT`
+            Box::<MDataOut>::default(),
+            Box::<MDataIn>::default(),
+        ]
     }
 
     /// Reset conversation de tous les `middlewares`
@@ -194,7 +208,7 @@ impl Middlewares {
                 self.handle_request_data_frame(afsec_service, &request_data_frame)
             }
             Err(e) => {
-                println!("AFSEC Comm: Got frame with error : {e}");
+                println!("AFSEC Comm: Got frame with error: {e}");
                 // On ne répond rien
                 RawFrame::new(&[])
             }

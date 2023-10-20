@@ -31,7 +31,7 @@ impl CommonMiddlewareTrait for MInit {
                 id_message::D_RESIDENT_VERSION => {
                     let version_revision_edition = u32::from(&data_item.t_value);
                     let (version, revision, edition) =
-                        utils::get_version_revision_edition_from_u32(version_revision_edition);
+                        utils::u32_to_version_revision_edition(version_revision_edition);
                     utils::update_database(
                         afsec_service,
                         IdTag::new(0, 0x0001, [0, 0, 0]),
@@ -58,7 +58,7 @@ impl CommonMiddlewareTrait for MInit {
                 id_message::D_APPLI_VERSION => {
                     let version_revision_edition = u32::from(&data_item.t_value);
                     let (version, revision, edition) =
-                        utils::get_version_revision_edition_from_u32(version_revision_edition);
+                        utils::u32_to_version_revision_edition(version_revision_edition);
                     utils::update_database(
                         afsec_service,
                         IdTag::new(0, 0x0011, [0, 0, 0]),

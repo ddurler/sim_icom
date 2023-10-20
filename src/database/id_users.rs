@@ -1,7 +1,7 @@
 //! Gestion de l'historique des modifications de la [`Database`] pour les différents [`IdUser`]
 //!
 //! Le système de notification mis en place ici n'est pas un modèle 'observateur' avec un callback
-//! vers une fonction de l'utilisateur : Pas facile à mettre en place en Rust via les `threads`.
+//! vers une fonction de l'utilisateur: Pas facile à mettre en place en Rust via les `threads`.
 //!
 //! Ici, l'utilisateur doit 'poller' pour s'enquérir des dernières modifications dans la [`Database`].
 

@@ -1,21 +1,21 @@
 //! Encodage et décodage des trames 'brutes' telles qu'échangées via la liaison série
 //! entre l'AFSEC+ et l'ICOM (support `Vec<u8>` sous-jacent)
 //!
-//! Ce module est prévu pour construire une trame TLV au fur et à mesure que des octets sont
-//! reçus :
+//! Ce module est prévu pour construire une trame TLV au fur et à mesure que des octets sont reçus:
+//!
 //! ```
 //! let frame = RawFrame::default();
 //! frame.push(octet);
 //! ```
 //!
 //! On peut alors obtenir l'état en cours de la construction pour statuer ce qu'il convient de faire pour
-//! poursuivre la construction :
+//! poursuivre la construction:
 //!
-//! * `FrameState::Empty` Rien reçu : Abandoner si timeout
-//! * `FrameState::Building` Des octets reçus. La trame semble correcte mais on n'a pas tout reçu : Continuer
+//! * `FrameState::Empty` Rien reçu: Abandoner si timeout
+//! * `FrameState::Building` Des octets reçus. La trame semble correcte mais on n'a pas tout reçu: Continuer
 //!    la construction en cours ou abandonner si timeout
-//! * `FrameState::Ok` Réception d'une trame complète et correcte :  On peut traiter son contenu
-//! * `FrameState::Junk` Réception d'octets qu'on ne sait pas interpréter : Abandonner
+//! * `FrameState::Ok` Réception d'une trame complète et correcte:  On peut traiter son contenu
+//! * `FrameState::Junk` Réception d'octets qu'on ne sait pas interpréter: Abandonner
 //!
 //! Si des octets surnuméraires sont reçus après avoir identifié une trame correcte, la trame
 //! devient `FrameState::Junk`. On peut alors tenter `frame.remove_junk` pour retrouver la trame correcte

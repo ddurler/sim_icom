@@ -3,10 +3,10 @@
 //!
 //! Ce module s'appuie sur la structure [`RawFrame`] qui gère le transport des messages octet par octet.
 //!
-//! Le message est ensuite décodé/encodé dans une structure logique de son contenu avec :
+//! Le message est ensuite décodé/encodé dans une structure logique de son contenu avec:
 //!
-//! * tag : Sujet principal du message
-//! * `Vec<DataItem>` : Liste des données dans le message
+//! * tag: Sujet principal du message
+//! * `Vec<DataItem>`: Liste des données dans le message
 //!
 //! Les données du message sont portées par `DataItem`
 

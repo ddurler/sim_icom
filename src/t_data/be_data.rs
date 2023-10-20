@@ -5,7 +5,7 @@ use std::vec;
 
 use super::{TFormat, TValue};
 
-/// Extraction d'une donnée : `TFormat` + `Vec<u8>` -> `TValue`
+/// Extraction d'une donnée: `TFormat` + `Vec<u8>` -> `TValue`
 #[allow(clippy::cast_possible_wrap)]
 pub fn decode(t_format: TFormat, vec_u8: &[u8]) -> Result<TValue, &'static str> {
     if vec_u8.len() < t_format.nb_bytes() {
@@ -62,7 +62,7 @@ pub fn decode(t_format: TFormat, vec_u8: &[u8]) -> Result<TValue, &'static str> 
     }
 }
 
-/// Construction d'une donnée : `TValue` -> `Vec<u8>`
+/// Construction d'une donnée: `TValue` -> `Vec<u8>`
 #[allow(clippy::cast_sign_loss)]
 pub fn encode(t_value: &TValue) -> Vec<u8> {
     match t_value {

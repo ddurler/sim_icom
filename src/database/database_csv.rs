@@ -21,47 +21,47 @@ pub fn from_line_csv(line: &str) -> Result<Option<Tag>, String> {
     //     println!("{n}: '{field}'");
     // }
 
-    // Champ #0 : 00:0000:00:00:00 -> internal + num_tag + indice 0, 1 et 3
+    // Champ #0: 00:0000:00:00:00 -> internal + num_tag + indice 0, 1 et 3
     let (is_internal, num_tag_u16, indice_0, indice_1, indice_2) = parse_field0(fields[0].trim())?;
     tag.is_internal = is_internal;
 
-    // Champ #1 : word_address MODBUS (hexa)
+    // Champ #1: word_address MODBUS (hexa)
     let word_address = parse_str_hexa_to_u16(fields[1].trim())?;
     tag.word_address = word_address;
 
-    // Champ #2 : Format de la donnée hexa
+    // Champ #2: Format de la donnée hexa
     let format_u8 = parse_str_hexa_to_u8(fields[2].trim())?;
     tag.t_format = TFormat::from(format_u8);
     if tag.t_format == TFormat::Unknown {
-        return Err(format!("Format inconnu de donnée : {format_u8:02X}"));
+        return Err(format!("Format inconnu de donnée: {format_u8:02X}"));
     }
 
-    // Champ #3 : Unité (si définie)
+    // Champ #3: Unité (si définie)
     tag.unity = fields[3].trim().to_string();
 
-    // Champ #4 : Libellé (si défini)
+    // Champ #4: Libellé (si défini)
     tag.label = fields[4].trim().to_string();
 
     // Champs #5 (CanOpen index), #6 (CanOpen), #7 (MQTT topic), #8 (QoS), #9 (Not used)
 
-    // Champ #10 : R/W (0/1)
+    // Champ #10: R/W (0/1)
     let read_write_u8 = match fields[10].trim().parse::<u8>() {
         Ok(rw) => rw,
         Err(e) => {
-            return Err(format!("R/W incorrect : {e}"));
+            return Err(format!("R/W incorrect: {e}"));
         }
     };
     tag.is_write = read_write_u8 == 1;
 
-    // Champ #11 : Zone (décimal)
+    // Champ #11: Zone (décimal)
     let zone = match fields[11].trim().parse::<u8>() {
         Ok(zone) => zone,
         Err(e) => {
-            return Err(format!("No de zone incorrect : {e}"));
+            return Err(format!("No de zone incorrect: {e}"));
         }
     };
 
-    // Champ #12 : Valeur par défaut
+    // Champ #12: Valeur par défaut
     tag.default_value = fields[12].trim().to_string();
 
     // Construction de l'[`IdTag`] trouvé
@@ -91,7 +91,7 @@ fn parse_char_hexa(car: char) -> Result<u8, String> {
         'e' | 'E' => 14,
         'f' | 'F' => 15,
         _ => {
-            return Err(format!("Caractère hexa incorrect : {car}"));
+            return Err(format!("Caractère hexa incorrect: {car}"));
         }
     };
     Ok(value)
@@ -115,7 +115,7 @@ fn parse_str_hexa_to_u16(field: &str) -> Result<u16, String> {
     Ok(value)
 }
 
-/// Parse le champ #0 : 00:0000:00:00:00 -> internal + `num_tag` + indices 0, 1 et 2
+/// Parse le champ #0: 00:0000:00:00:00 -> internal + `num_tag` + indices 0, 1 et 2
 fn parse_field0(field: &str) -> Result<(bool, u16, u8, u8, u8), String> {
     if field.len() != 16 {
         return Err("Longueur incorrecte du champ#0 (xx:xxxx:xx:xx:xx attendu)".to_string());

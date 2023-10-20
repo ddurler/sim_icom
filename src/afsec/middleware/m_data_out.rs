@@ -1,10 +1,12 @@
 //! `middleware` pour le traitement `AF_DATA_OUT`
-
-use crate::afsec::middleware::records::RecordData;
+//!
+//! Prend en charge les conversation `AF_DATA_OUT` du résident qui transmet des données.
+//! Il peut s'agir de données pou renseigner la `Database` (`ZONE` + `IdTag` + `TValue`)
+//! ou de donnée pour un enregistrement dans un journal (`TABLE_INDEX` en sus)
 
 use super::{
-    id_message, utils, CommonMiddlewareTrait, Context, DataFrame, DatabaseAfsecComm, IdTag, IdUser,
-    RawFrame, TValue,
+    id_message, records::RecordData, utils, CommonMiddlewareTrait, Context, DataFrame,
+    DatabaseAfsecComm, IdTag, IdUser, RawFrame, TValue,
 };
 
 #[derive(Default)]
@@ -57,7 +59,7 @@ impl CommonMiddlewareTrait for MDataOut {
             // Si on a reçu au moins zone + vec_u8_tag + t_value
             if let Some(zone) = context.option_zone {
                 if let Some(vec_u8_tag) = &context.option_vec_u8_tag {
-                    let id_tag = utils::get_id_tag_from_zone_vec_u8_tag(zone, vec_u8_tag);
+                    let id_tag = utils::zone_vec_u8_tag_to_id_tag(zone, vec_u8_tag);
                     if let Some(t_value) = &context.option_t_value {
                         if let Some(table_index) = context.option_table_index {
                             // Avec un `table index`, on est dans la mise à jour d'un enregistrement
