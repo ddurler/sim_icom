@@ -1,10 +1,10 @@
 //! Helpers pour les `middlewares`
 
-use super::{Context, DatabaseAfsecComm, IdTag, RecordData, TValue};
+use super::{Context, DatabaseAfsecComm, IdTag, RecordData, TValue, TAG_NUM_END_OF_RECORD};
 
 /// Indique s'il s'agit d'un tag `END_OF_RECORD` pour les enregistrements
 fn is_id_tag_end_of_record(id_tag: IdTag) -> bool {
-    id_tag.num_tag == 0x7210
+    id_tag.num_tag == TAG_NUM_END_OF_RECORD
 }
 
 /// Helper pour découper un u32 en 10000 * version + 100 * revision + edition

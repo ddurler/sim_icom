@@ -8,8 +8,8 @@
 //! Le simulateur n'enregistre rien. Aussi, il répond 0 pour les index de début/fin de tous les journaux.
 
 use super::{
-    id_message, CommonMiddlewareTrait, Context, DataFrame, DataItem, DatabaseAfsecComm,
-    IdTag, IdUser, RawFrame, TFormat, TValue,
+    id_message, CommonMiddlewareTrait, Context, DataFrame, DataItem, DatabaseAfsecComm, IdTag,
+    IdUser, RawFrame, TFormat, TValue,
 };
 
 #[derive(Default)]

@@ -33,7 +33,7 @@ impl CommonMiddlewareTrait for MDataOut {
         }
         // Décompte des AF_DATA_OUT traités
         context.nb_data_out += 1;
-        println!("AFSEC Comm.: AF_DATA_OUT #{}...", context.nb_data_out);
+        println!("AFSEC Comm: AF_DATA_OUT #{}...", context.nb_data_out);
 
         // Init avant traitement
         context.option_vec_u8_tag = None;

@@ -23,7 +23,7 @@ impl CommonMiddlewareTrait for MInit {
         }
         // Décompte des AF_INIT traités
         context.nb_init += 1;
-        println!("AFSEC Comm.: AF_INIT #{}...", context.nb_init);
+        println!("AFSEC Comm: AF_INIT #{}...", context.nb_init);
 
         // Exploitation des informations reçues et mise à jour de la database
         for data_item in request_data_frame.get_data_items() {

@@ -14,6 +14,8 @@
 //! * `AF_DATA_IN` / `IC_DATA_IN`: pris en charge par le middleware `MDataIn`
 //! * `AF_DATA_OUT_TABLE_INDEX` / `IC_DATA_OUT_TABLE_INDEX`: pris en charge par le middleware `MDataOutTableIndex`
 
+use std::collections::HashSet;
+
 use crate::{
     afsec::tlv_frame::DataItem,
     database::{IdTag, IdUser},
@@ -33,6 +35,9 @@ use records::RecordData;
 mod m_init;
 use m_init::MInit;
 
+mod m_pack_in;
+use m_pack_in::MPackIn;
+
 mod m_data_out;
 use m_data_out::MDataOut;
 
@@ -41,6 +46,14 @@ use m_data_in::MDataIn;
 
 mod m_data_out_table_index;
 use m_data_out_table_index::MDataOutTableIndex;
+
+/// Tag pour un `END_OF_RECORD` d'un `DATA_OUT` lors d'un enregistrement d'un journal
+/// Voir SR DEV 004
+pub const TAG_NUM_END_OF_RECORD: u16 = 0x7210;
+
+/// Tag pour la zone `PACK_IN` (en zone 5) ou `PACK_OUT` (en zone 4)
+/// Voir SR DEV 004
+pub const TAG_DATA_PACK: u16 = 0x0F45;
 
 // On implémente des `middlewares` qu'on peut désigner dynamiquement par `&dyn CommonMiddlewareTrait`.
 //
@@ -61,13 +74,16 @@ type IdMiddleware = usize;
 // => C'est la structure générique `Context` qui doit être utilisée comme `context` pour ce besoin
 #[derive(Debug, Default)]
 pub struct Context {
-    /// Nombre de AF_INIT depuis le début
+    /// Nombre de INIT depuis le début
     nb_init: usize,
 
-    /// Nombre de AF_DATA_OUT depuis le début
+    /// Nombre de PACK_IN depuis le début
+    nb_pack_in: usize,
+
+    /// Nombre de DATA_OUT depuis le début
     nb_data_out: usize,
 
-    /// Nombre de AF_DATA_IN depuis le début
+    /// Nombre de DATA_IN depuis le début
     nb_data_in: usize,
 
     /// Numéro de zone de la conversation en cours
@@ -87,6 +103,20 @@ pub struct Context {
 
     /// Liste des notification_changes pour la conversation DATA_IN
     notification_changes: Vec<(IdTag, TValue)>,
+
+    /// Indicateur à true lorsqu'une transaction 'pack_in' est en cours
+    pack_in_transaction: bool,
+
+    /// Ensemble des `PACK_IN`` à transmettre à l'ICOM pour la transaction `pack_in`
+    /// On représente ici les 8 zones de 32 mots `TAG_DATA_PACK` de la zone de commande (zone 5)
+    /// par un entier de 0 à 7 dans un `HashSet`
+    set_pack_in: HashSet<u8>,
+
+    /// Copie privée des données de la transaction `pack-in` en cours
+    pack_in_datas: Vec<(u8, Vec<u8>)>,
+
+    /// Ensemble des PACK_IN à pour la transaction `pack_in` à suivre
+    set_pending_pack_in: HashSet<u8>,
 }
 
 /// Trait à implémenter pour chaque `middleware`
@@ -137,10 +167,11 @@ impl Middlewares {
         }
     }
 
-    /// Retourne la liste de tous les `middlewares`
+    /// Retourne la liste des `middlewares`
     fn all_middlewares() -> Vec<Box<dyn CommonMiddlewareTrait>> {
         vec![
             // Box::<MInit>::default(),  // Construit sur demande `AF_INIT`
+            Box::<MPackIn>::default(),
             Box::<MDataOut>::default(),
             Box::<MDataIn>::default(),
             Box::<MDataOutTableIndex>::default(),
@@ -275,11 +306,11 @@ impl Middlewares {
         // Pas de `middleware` pour répondre...
         if request_data_frame.get_tag() == id_message::AF_ALIVE {
             // On répond IC_ALIVE
-            println!("AFSEC Comm.: AF_ALIVE...");
+            println!("AFSEC Comm: AF_ALIVE...");
             RawFrame::new_message(id_message::IC_ALIVE)
         } else {
-            // On NACK
-            println!("AFSEC Comm.: AF_ALIVE...");
+            // Répond NACK
+            println!("AFSEC Comm: NACK...");
             RawFrame::new_nack()
         }
     }

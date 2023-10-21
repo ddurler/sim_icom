@@ -36,7 +36,7 @@ impl CommonMiddlewareTrait for MDataIn {
 
         // Décompte des AF_DATA_IN traités
         context.nb_data_in += 1;
-        println!("AFSEC Comm.: AF_DATA_IN #{}...", context.nb_data_in);
+        println!("AFSEC Comm: AF_DATA_IN #{}...", context.nb_data_in);
 
         // Préparation d'un message `IC_DATA_IN` pour transmettre des datas à l'AFSEC+
         let mut raw_frame = RawFrame::new_message(id_message::IC_DATA_IN);
