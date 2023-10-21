@@ -23,7 +23,6 @@ impl CommonMiddlewareTrait for MDataOutTableIndex {
         _context: &mut Context,
         _afsec_service: &mut DatabaseAfsecComm,
         request_data_frame: &DataFrame,
-        _is_already_conversing: bool,
     ) -> Option<RawFrame> {
         if request_data_frame.get_tag() != id_message::AF_DATA_OUT_TABLE_INDEX {
             // Non concerné par cette conversation

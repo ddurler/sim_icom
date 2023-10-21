@@ -16,7 +16,6 @@ impl CommonMiddlewareTrait for MInit {
         context: &mut Context,
         afsec_service: &mut DatabaseAfsecComm,
         request_data_frame: &DataFrame,
-        _is_already_conversing: bool,
     ) -> Option<RawFrame> {
         if request_data_frame.get_tag() != id_message::AF_INIT {
             return None;

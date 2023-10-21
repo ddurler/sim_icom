@@ -22,7 +22,6 @@ impl CommonMiddlewareTrait for MDataIn {
         context: &mut Context,
         _afsec_service: &mut DatabaseAfsecComm,
         request_data_frame: &DataFrame,
-        _is_already_conversing: bool,
     ) -> Option<RawFrame> {
         if ![id_message::AF_ALIVE, id_message::AF_DATA_IN].contains(&request_data_frame.get_tag()) {
             // Non concerné par cette conversation

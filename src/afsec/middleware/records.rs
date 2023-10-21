@@ -2,6 +2,10 @@
 
 use super::{Context, IdTag, TValue};
 
+/// Tag pour un `END_OF_RECORD` d'un `DATA_OUT` lors d'un enregistrement d'un journal
+/// Voir SR DEV 004
+const TAG_NUM_END_OF_RECORD: u16 = 0x7210;
+
 /// Structure pour une donnée d'un enregistrement
 #[derive(Debug)]
 pub struct RecordData {
@@ -33,6 +37,11 @@ impl RecordData {
             id_tag,
             t_value: t_value.clone(),
         }
+    }
+
+    /// Indique s'il s'agit d'un tag `END_OF_RECORD` pour les enregistrements
+    pub fn is_id_tag_end_of_record(id_tag: IdTag) -> bool {
+        id_tag.num_tag == TAG_NUM_END_OF_RECORD
     }
 
     /// Annonce la fin de la collecte des données d'un enregistrement

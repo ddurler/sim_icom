@@ -14,8 +14,6 @@
 //! * `AF_DATA_IN` / `IC_DATA_IN`: pris en charge par le middleware `MDataIn`
 //! * `AF_DATA_OUT_TABLE_INDEX` / `IC_DATA_OUT_TABLE_INDEX`: pris en charge par le middleware `MDataOutTableIndex`
 
-use std::collections::HashSet;
-
 use crate::{
     afsec::tlv_frame::DataItem,
     database::{IdTag, IdUser},
@@ -27,6 +25,9 @@ use super::{DataFrame, DatabaseAfsecComm, RawFrame};
 mod id_message;
 pub use id_message::*;
 
+mod context;
+pub use context::Context;
+
 mod utils;
 
 mod records;
@@ -34,6 +35,9 @@ use records::RecordData;
 
 mod m_init;
 use m_init::MInit;
+
+mod m_pack_out;
+use m_pack_out::MPackOut;
 
 mod m_pack_in;
 use m_pack_in::MPackIn;
@@ -46,10 +50,6 @@ use m_data_in::MDataIn;
 
 mod m_data_out_table_index;
 use m_data_out_table_index::MDataOutTableIndex;
-
-/// Tag pour un `END_OF_RECORD` d'un `DATA_OUT` lors d'un enregistrement d'un journal
-/// Voir SR DEV 004
-pub const TAG_NUM_END_OF_RECORD: u16 = 0x7210;
 
 /// Tag pour la zone `PACK_IN` (en zone 5) ou `PACK_OUT` (en zone 4)
 /// Voir SR DEV 004
@@ -68,57 +68,6 @@ pub const TAG_DATA_PACK: u16 = 0x0F45;
 /// Il s'agit ici de l'indice du `middleware` dans la liste des `middlewares`
 type IdMiddleware = usize;
 
-/// Structure de contexte commune à tous les `middlewares`
-// ATTENTION: Chaque `middleware` ne doit pas avoir sa propre structure de données
-// (la liste des `middlewares` est régénérée périodiquement (voir commentaire ci-dessus))
-// => C'est la structure générique `Context` qui doit être utilisée comme `context` pour ce besoin
-#[derive(Debug, Default)]
-pub struct Context {
-    /// Nombre de INIT depuis le début
-    nb_init: usize,
-
-    /// Nombre de PACK_IN depuis le début
-    nb_pack_in: usize,
-
-    /// Nombre de DATA_OUT depuis le début
-    nb_data_out: usize,
-
-    /// Nombre de DATA_IN depuis le début
-    nb_data_in: usize,
-
-    /// Numéro de zone de la conversation en cours
-    option_zone: Option<u8>,
-
-    /// `TABLE_INDEX` de la conversation en cours
-    option_table_index: Option<u64>,
-
-    /// `Tag` de la conversation en cours (`Vec<u8>` de 5 = U16 + 3 x U8)
-    option_vec_u8_tag: Option<Vec<u8>>,
-
-    /// `TValue` de la conversation en cours
-    option_t_value: Option<TValue>,
-
-    /// `RecordData` vus pendant la conversation DATA_OUT
-    record_datas: Vec<RecordData>,
-
-    /// Liste des notification_changes pour la conversation DATA_IN
-    notification_changes: Vec<(IdTag, TValue)>,
-
-    /// Indicateur à true lorsqu'une transaction 'pack_in' est en cours
-    pack_in_transaction: bool,
-
-    /// Ensemble des `PACK_IN`` à transmettre à l'ICOM pour la transaction `pack_in`
-    /// On représente ici les 8 zones de 32 mots `TAG_DATA_PACK` de la zone de commande (zone 5)
-    /// par un entier de 0 à 7 dans un `HashSet`
-    set_pack_in: HashSet<u8>,
-
-    /// Copie privée des données de la transaction `pack-in` en cours
-    pack_in_datas: Vec<(u8, Vec<u8>)>,
-
-    /// Ensemble des PACK_IN à pour la transaction `pack_in` à suivre
-    set_pending_pack_in: HashSet<u8>,
-}
-
 /// Trait à implémenter pour chaque `middleware`
 pub trait CommonMiddlewareTrait {
     /// Fonction appelée lorsque la conversation en cours (s'il y en a une) est terminée.
@@ -134,7 +83,6 @@ pub trait CommonMiddlewareTrait {
         context: &mut Context,
         afsec_service: &mut DatabaseAfsecComm,
         request_data_frame: &DataFrame,
-        is_already_conversing: bool,
     ) -> Option<RawFrame>;
 
     /// Fonction appelée pour indiquer une modification dans le contenu de la `database`
@@ -171,6 +119,7 @@ impl Middlewares {
     fn all_middlewares() -> Vec<Box<dyn CommonMiddlewareTrait>> {
         vec![
             // Box::<MInit>::default(),  // Construit sur demande `AF_INIT`
+            Box::<MPackOut>::default(),
             Box::<MPackIn>::default(),
             Box::<MDataOut>::default(),
             Box::<MDataIn>::default(),
@@ -195,12 +144,9 @@ impl Middlewares {
         request_data_frame: &DataFrame,
     ) -> Option<RawFrame> {
         for (id_middleware, middleware) in Self::all_middlewares().iter().enumerate() {
-            if let Some(response_raw_frame) = middleware.get_conversation(
-                &mut self.context,
-                afsec_service,
-                request_data_frame,
-                false,
-            ) {
+            if let Some(response_raw_frame) =
+                middleware.get_conversation(&mut self.context, afsec_service, request_data_frame)
+            {
                 self.option_cur_middleware = Some(id_middleware);
                 return Some(response_raw_frame);
             }
@@ -270,7 +216,6 @@ impl Middlewares {
                 &mut self.context,
                 afsec_service,
                 request_data_frame,
-                false,
             ) {
                 Some(response_raw_frame) => response_raw_frame,
                 None => RawFrame::new_nack(),
@@ -281,12 +226,9 @@ impl Middlewares {
         if let Some(id_middleware) = &self.option_cur_middleware {
             // Conversation en cours, on passe la requête à ce `middleware`
             let middleware = &Self::all_middlewares()[*id_middleware];
-            if let Some(response_raw_frame) = middleware.get_conversation(
-                &mut self.context,
-                afsec_service,
-                request_data_frame,
-                true,
-            ) {
+            if let Some(response_raw_frame) =
+                middleware.get_conversation(&mut self.context, afsec_service, request_data_frame)
+            {
                 return response_raw_frame;
             }
             // Le `middleware` qui conversait ne veut plus cette conversation

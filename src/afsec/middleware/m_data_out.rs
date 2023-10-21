@@ -1,7 +1,7 @@
 //! `middleware` pour le traitement `AF_DATA_OUT`
 //!
-//! Prend en charge les conversation `AF_DATA_OUT` du résident qui transmet des données.
-//! Il peut s'agir de données pou renseigner la `Database` (`ZONE` + `IdTag` + `TValue`)
+//! Prend en charge les conversations `AF_DATA_OUT` du résident qui transmet des données.
+//! Il peut s'agir de données pour renseigner la `Database` (`ZONE` + `IdTag` + `TValue`)
 //! ou de donnée pour un enregistrement dans un journal (`TABLE_INDEX` en sus)
 
 use super::{
@@ -26,7 +26,6 @@ impl CommonMiddlewareTrait for MDataOut {
         context: &mut Context,
         afsec_service: &mut DatabaseAfsecComm,
         request_data_frame: &DataFrame,
-        _is_already_conversing: bool,
     ) -> Option<RawFrame> {
         if request_data_frame.get_tag() != id_message::AF_DATA_OUT {
             return None;

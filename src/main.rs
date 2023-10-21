@@ -39,6 +39,7 @@ L'outil est également un serveur MODBUS/TCP pour interagir avec le contenu de l
     "
 }
 
+/// Point d'entrée du simulateur ICOM
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Au moins un argument avec le port série
