@@ -9,7 +9,7 @@
 
 use super::{
     id_message, CommonMiddlewareTrait, Context, DataFrame, DataItem, DatabaseAfsecComm, IdTag,
-    IdUser, RawFrame, TFormat, TValue,
+    IdUser, RawFrame, TValue,
 };
 
 #[derive(Default)]
@@ -51,23 +51,15 @@ impl CommonMiddlewareTrait for MDataOutTableIndex {
         let mut raw_frame = RawFrame::new_message(id_message::IC_DATA_OUT_TABLE_INDEX);
 
         // Zone
-        let data_item = DataItem::new(id_message::D_DATA_ZONE, TFormat::U8, TValue::U8(cur_zone));
+        let data_item = DataItem::new(id_message::D_DATA_ZONE, TValue::U8(cur_zone));
         raw_frame.try_extend_data_item(&data_item).unwrap();
 
         // First index
-        let data_item = DataItem::new(
-            id_message::D_DATA_FIRST_TABLE_INDEX,
-            TFormat::U64,
-            TValue::U64(0),
-        );
+        let data_item = DataItem::new(id_message::D_DATA_FIRST_TABLE_INDEX, TValue::U64(0));
         raw_frame.try_extend_data_item(&data_item).unwrap();
 
         // Last index
-        let data_item = DataItem::new(
-            id_message::D_DATA_FIRST_TABLE_INDEX,
-            TFormat::U64,
-            TValue::U64(0),
-        );
+        let data_item = DataItem::new(id_message::D_DATA_FIRST_TABLE_INDEX, TValue::U64(0));
         raw_frame.try_extend_data_item(&data_item).unwrap();
 
         // Réponse

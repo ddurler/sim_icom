@@ -2,7 +2,7 @@
 
 use super::{Context, DatabaseAfsecComm, IdTag, RecordData, TValue};
 
-/// Helper pour découper un u32 en 10000 * version + 100 * revision + edition
+/// Helper pour découper un `u32` au format 10000 * version + 100 * revision + edition
 pub fn u32_to_version_revision_edition(version_revision_edition: u32) -> (u16, u16, u16) {
     let edition = version_revision_edition % 100;
     let version_revision_edition = version_revision_edition / 100;
@@ -14,7 +14,6 @@ pub fn u32_to_version_revision_edition(version_revision_edition: u32) -> (u16, u
 }
 
 /// Helper pour convertir une `zone` + `tag_str5` en `IdTag`
-#[allow(clippy::cast_lossless)]
 pub fn zone_vec_u8_tag_to_id_tag(zone: u8, vec_u8_tag: &[u8]) -> IdTag {
     // Converti le vec_u8_tag en un Vec<u8> d'au moins 5 éléments
     let mut vec_u8 = vec_u8_tag.to_vec();
@@ -22,11 +21,12 @@ pub fn zone_vec_u8_tag_to_id_tag(zone: u8, vec_u8_tag: &[u8]) -> IdTag {
         vec_u8.push(0);
     }
     // Création de l'IdTag correspondant
+    #[allow(clippy::cast_lossless)]
     let tag = vec_u8[0] as u16 * 256 + vec_u8[1] as u16;
     IdTag::new(zone, tag, [vec_u8[2], vec_u8[3], vec_u8[4]])
 }
 
-/// Helper pour convertir un `tag_num` + `indices` en un `Vec<u>` de 5 'u8'
+/// Helper pour convertir un `tag_num` + `indices` en un `Vec<u8>` de 5 `u8`
 pub fn tag_num_indices_to_vec_u8(
     num_tag: u16,
     indice_0: u8,
@@ -64,7 +64,7 @@ pub fn update_database(afsec_service: &mut DatabaseAfsecComm, id_tag: IdTag, t_v
     }
 }
 
-/// Helper pour l'ajout d'une donnée d'un enregistrement d'un table
+/// Helper pour l'ajout d'une donnée d'un enregistrement d'une table
 pub fn add_record(context: &mut Context, record: RecordData) {
     if RecordData::is_id_tag_end_of_record(record.id_tag) {
         println!("AFSEC Comm: Got END_OF_RECORD");
@@ -79,12 +79,12 @@ mod tests {
     use super::*;
 
     #[test]
-    #[allow(clippy::cast_lossless)]
     fn test_u32_to_version_revision_edition() {
         let version = 1_u16;
         let revision = 2_u16;
         let edition = 3_u16;
 
+        #[allow(clippy::cast_lossless)]
         let version_revision_edition =
             version as u32 * 10_000 + revision as u32 * 100 + edition as u32;
 

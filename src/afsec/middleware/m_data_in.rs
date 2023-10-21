@@ -8,7 +8,7 @@
 
 use super::{
     id_message, utils, CommonMiddlewareTrait, Context, DataFrame, DataItem, DatabaseAfsecComm,
-    IdTag, IdUser, RawFrame, TFormat, TValue,
+    IdTag, IdUser, RawFrame, TValue,
 };
 
 #[derive(Default)]
@@ -60,8 +60,7 @@ impl CommonMiddlewareTrait for MDataIn {
             // La zone peut être omise si elle est idem à la donnée précédente du message
             if id_tag.zone != cur_zone {
                 cur_zone = id_tag.zone;
-                let data_item =
-                    DataItem::new(id_message::D_DATA_ZONE, TFormat::U8, TValue::U8(cur_zone));
+                let data_item = DataItem::new(id_message::D_DATA_ZONE, TValue::U8(cur_zone));
                 if new_raw_frame.try_extend_data_item(&data_item).is_err() {
                     // Ne passe pas, on arrête de gaver la trame
                     break;
@@ -75,18 +74,14 @@ impl CommonMiddlewareTrait for MDataIn {
                 id_tag.indice_1,
                 id_tag.indice_2,
             );
-            let data_item = DataItem::new(
-                id_message::D_DATA_TAG,
-                TFormat::VecU8(5),
-                TValue::VecU8(5, vec_u8),
-            );
+            let data_item = DataItem::new(id_message::D_DATA_TAG, TValue::VecU8(5, vec_u8));
             if new_raw_frame.try_extend_data_item(&data_item).is_err() {
                 // Ne passe pas, on arrête de gaver la trame
                 break;
             }
 
             // Value
-            let data_item = DataItem::new(id_message::D_DATA_TAG, TFormat::from(&t_value), t_value);
+            let data_item = DataItem::new(id_message::D_DATA_VALUE, t_value);
             if new_raw_frame.try_extend_data_item(&data_item).is_err() {
                 // Ne passe pas, on arrête de gaver la trame
                 break;
@@ -113,5 +108,152 @@ impl CommonMiddlewareTrait for MDataIn {
             // On ne retient que les changements d'autres utilisateurs
             context.notification_changes.push((id_tag, t_value.clone()));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::sync::{Arc, Mutex};
+
+    use crate::database::ID_ANONYMOUS_USER;
+    use crate::t_data::TFormat;
+    use crate::{database::Tag, Database};
+
+    #[test]
+    fn test_conversation() {
+        // Création d'une database
+        let mut db = Database::default();
+
+        // Création d'un tag
+        let id_tag = IdTag::new(0, 0x0102, [0, 0, 0]);
+        let tag = Tag {
+            word_address: 0x0000,
+            id_tag,
+            t_format: TFormat::U16,
+            ..Default::default()
+        };
+        db.add_tag(&tag);
+
+        // Créer la database partagée mutable
+        let shared_db = Arc::new(Mutex::new(db));
+        // Cloner la référence à la database partagée pour la communication avec l'AFSEC+
+        let db_afsec = Arc::clone(&shared_db);
+
+        // Création contexte pour les middlewares
+        let mut context = Context::default();
+        let mut afsec_service = DatabaseAfsecComm::new(db_afsec, "fake".to_string());
+
+        // Inscription pour être notifié des changements dans la database
+        afsec_service.id_user = {
+            let mut db: std::sync::MutexGuard<'_, crate::database::Database> =
+            // Verrouiller la database partagée
+            afsec_service.thread_db.lock().unwrap();
+
+            db.get_id_user("TEST", true)
+        };
+
+        // Par défaut, la valeur 0 dans la database
+        {
+            // Verrouiller la database partagée
+            let db: std::sync::MutexGuard<'_, crate::database::Database> =
+                afsec_service.thread_db.lock().unwrap();
+
+            assert_eq!(db.get_u16_from_id_tag(0, id_tag), 0);
+        }
+
+        // Création d'un middleware DATA_IN pour le test
+        let middleware: MDataIn = MDataIn::default();
+
+        // Création d'une requête AFSEC+ pour invitation à parler
+        let request = RawFrame::new_message(id_message::AF_ALIVE);
+        let request = DataFrame::try_from(request).unwrap();
+
+        // Envoi du message 'invitation à parler' au middleware
+        let option_response =
+            middleware.get_conversation(&mut context, &mut afsec_service, &request);
+
+        // Le middleware doit avoir répondu None (rien à dire)
+        assert!(option_response.is_none());
+
+        // On modifie le contenu de l'id_tag dans la database (par un autre utilisateur)
+        {
+            // Verrouiller la database partagée
+            let mut db: std::sync::MutexGuard<'_, crate::database::Database> =
+                afsec_service.thread_db.lock().unwrap();
+
+            db.set_u16_to_id_tag(ID_ANONYMOUS_USER, id_tag, 123);
+        }
+
+        // Active le système de notification pour notifier les middlewares
+        let mut vec_changes = vec![];
+        loop {
+            // Verrouiller la database partagée
+            let mut db = afsec_service.thread_db.lock().unwrap();
+
+            // Voir s'il y a une notification d'un autre utilisateur
+            if let Some(notification_change) = db.get_change(afsec_service.id_user, false, true) {
+                if let Some(tag) = db.get_tag_from_id_tag(notification_change.id_tag) {
+                    let id_user = notification_change.id_user;
+                    let id_tag = notification_change.id_tag;
+                    let t_value = db.get_t_value_from_tag(id_user, tag);
+
+                    vec_changes.push((id_user, id_tag, t_value));
+                }
+            } else {
+                break;
+            }
+        }
+        assert!(!vec_changes.is_empty());
+
+        // Informe le middleware des modification_changes
+        for (id_user, id_tag, t_value) in vec_changes {
+            middleware.notification_change(
+                &mut context,
+                &mut afsec_service,
+                id_user,
+                id_tag,
+                &t_value,
+            );
+        }
+
+        // Envoi du 'invitation à parler' message au middleware
+        let option_response =
+            middleware.get_conversation(&mut context, &mut afsec_service, &request);
+
+        // Le middleware doit avoir répondu DATA_IN
+        assert!(option_response.is_some());
+        let response = option_response.unwrap();
+        let response = DataFrame::try_from(response).unwrap();
+        assert_eq!(response.get_tag(), id_message::IC_DATA_IN);
+
+        // On doit y retrouve la zone = 0, le num_tag et les indices et la valeur
+        let mut zone_ok = false;
+        let mut tag_ok = false;
+        let mut value_ok = false;
+        for data_item in response.get_data_items() {
+            match data_item.tag {
+                id_message::D_DATA_ZONE => {
+                    assert_eq!(u8::from(&data_item.t_value), 0);
+                    zone_ok = true;
+                }
+                id_message::D_DATA_TAG => {
+                    assert_eq!(
+                        data_item.t_value.to_vec_u8()[0..5],
+                        vec![0x01, 0x02, 0, 0, 0]
+                    );
+                    tag_ok = true;
+                }
+                id_message::D_DATA_VALUE => {
+                    assert_eq!(u16::from(&data_item.t_value), 123);
+                    value_ok = true;
+                }
+                _ => (),
+            }
+        }
+        assert!(zone_ok);
+        assert!(tag_ok);
+        assert!(value_ok);
     }
 }

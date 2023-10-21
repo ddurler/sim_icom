@@ -17,7 +17,7 @@
 use crate::{
     afsec::tlv_frame::DataItem,
     database::{IdTag, IdUser},
-    t_data::{TFormat, TValue},
+    t_data::TValue,
 };
 
 use super::{DataFrame, DatabaseAfsecComm, RawFrame};

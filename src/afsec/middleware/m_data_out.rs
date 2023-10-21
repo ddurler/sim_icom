@@ -90,3 +90,78 @@ impl CommonMiddlewareTrait for MDataOut {
     ) {
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::sync::{Arc, Mutex};
+
+    use crate::afsec::tlv_frame::DataItem;
+    use crate::database::ID_ANONYMOUS_USER;
+    use crate::{database::Tag, Database};
+
+    #[test]
+    fn test_conversation() {
+        // Création d'une database
+        let mut db = Database::default();
+
+        // Création d'un tag
+        let id_tag = IdTag::new(0, 0x0102, [0, 0, 0]);
+        let tag = Tag {
+            word_address: 0x0000,
+            id_tag,
+            ..Default::default()
+        };
+        db.add_tag(&tag);
+
+        // Créer la database partagée mutable
+        let shared_db = Arc::new(Mutex::new(db));
+        // Cloner la référence à la database partagée pour la communication avec l'AFSEC+
+        let db_afsec = Arc::clone(&shared_db);
+
+        // Création contexte pour les middlewares
+        let mut context = Context::default();
+        let mut afsec_service = DatabaseAfsecComm::new(db_afsec, "fake".to_string());
+
+        // Par défaut, la valeur 0 dans la database
+        {
+            // Verrouiller la database partagée
+            let db: std::sync::MutexGuard<'_, crate::database::Database> =
+                afsec_service.thread_db.lock().unwrap();
+
+            assert_eq!(db.get_u16_from_id_tag(ID_ANONYMOUS_USER, id_tag), 0);
+        }
+
+        // Création d'une requête AFSEC+ AF_DATA_OUT pour changer la valeur de l'id_tag
+        let mut request = RawFrame::new_message(id_message::AF_DATA_OUT);
+        let data_item_zone = DataItem::new(id_message::D_DATA_ZONE, TValue::U8(0));
+        request.try_extend_data_item(&data_item_zone).unwrap();
+        let data_item_tag = DataItem::new(
+            id_message::D_DATA_TAG,
+            TValue::VecU8(5, vec![0x01, 0x02, 0, 0, 0]),
+        );
+        request.try_extend_data_item(&data_item_tag).unwrap();
+        let data_item_value = DataItem::new(id_message::D_DATA_VALUE, TValue::U16(123));
+        request.try_extend_data_item(&data_item_value).unwrap();
+        let request = DataFrame::try_from(request).unwrap();
+
+        // Envoi du message au middleware
+        let middleware = MDataOut::default();
+        let response = middleware
+            .get_conversation(&mut context, &mut afsec_service, &request)
+            .unwrap();
+
+        // Le middleware doit avoir réponde ACK
+        assert_eq!(response, RawFrame::new_ack());
+
+        // Et on doit maintenant lire la valeur 123 dans la database
+        {
+            // Verrouiller la database partagée
+            let db: std::sync::MutexGuard<'_, crate::database::Database> =
+                afsec_service.thread_db.lock().unwrap();
+
+            assert_eq!(db.get_u16_from_id_tag(ID_ANONYMOUS_USER, id_tag), 123);
+        }
+    }
+}

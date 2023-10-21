@@ -117,7 +117,7 @@ impl Database {
                 len,
                 self.get_vec_u8_from_word_address(id_user, word_address, len),
             ),
-            TFormat::Unknown => TValue::VecU8(3, string_to_vec_u8("???")),
+            TFormat::Unknown => TValue::VecU8(2, string_to_vec_u8("??")),
         }
     }
 

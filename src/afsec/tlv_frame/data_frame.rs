@@ -149,11 +149,10 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::cast_possible_truncation)]
     fn test_encode_message() {
         // Contenu du message
         let message_tag = 1;
-        let data_item = DataItem::new(2, TFormat::U16, TValue::U16(123));
+        let data_item = DataItem::new(2, TValue::U16(123));
 
         // Création de la raw_frame
         let mut raw_frame = RawFrame::new_message(message_tag);
@@ -187,19 +186,21 @@ mod tests {
         let mut test_data_items = vec![];
         for i in 0..nb_data_items {
             // Change de type de valeur selon l'indice
-            let (t_format, t_value) = match i % 4 {
-                0 => (TFormat::U8, TValue::U8(i)),
-                1 => (TFormat::U16, TValue::U16(i as u16)),
-                2 => (TFormat::U32, TValue::U32(i as u32)),
-                _ => (TFormat::U64, TValue::U64(i as u64)),
+            #[allow(clippy::cast_possible_truncation)]
+            let t_value = match i % 4 {
+                0 => TValue::U8(i),
+                1 => TValue::U16(i as u16),
+                2 => TValue::U32(i as u32),
+                _ => TValue::U64(i as u64),
             };
-            let test_data_item = DataItem::new(i, t_format, t_value);
+            let test_data_item = DataItem::new(i, t_value);
             test_data_items.push(test_data_item);
         }
 
         // Création de la raw_frame
         let mut raw_frame = RawFrame::new_message(1);
         for i in 0..nb_data_items {
+            #[allow(clippy::cast_possible_truncation)]
             raw_frame
                 .try_extend_data_item(&test_data_items[i as usize])
                 .unwrap();
@@ -215,7 +216,10 @@ mod tests {
         // Parcourt des data_items
         for (i, data_item) in data_frame.get_data_items().iter().enumerate() {
             assert_eq!(data_item.tag, test_data_items[i].tag);
-            assert_eq!(data_item.t_format, test_data_items[i].t_format);
+            assert_eq!(
+                data_item.t_format,
+                TFormat::from(&test_data_items[i].t_value)
+            );
             assert_eq!(
                 u16::from(&data_item.t_value),
                 u16::from(&test_data_items[i].t_value)
@@ -227,7 +231,7 @@ mod tests {
     fn test_overflow_message() {
         // Contenu du message
         let message_tag = 1;
-        let data_item = DataItem::new(2, TFormat::U16, TValue::U16(123));
+        let data_item = DataItem::new(2, TValue::U16(123));
 
         // Création de la raw_frame
         let mut raw_frame = RawFrame::new_message(message_tag);

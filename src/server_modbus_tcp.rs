@@ -33,7 +33,6 @@ impl tokio_modbus::server::Service for DatabaseService {
     type Error = std::io::Error;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
-    #[allow(clippy::cast_possible_truncation)]
     fn call(&self, req: Self::Request) -> Self::Future {
         match req {
             Request::ReadInputRegisters(addr, cnt) => {
@@ -53,6 +52,7 @@ impl tokio_modbus::server::Service for DatabaseService {
                     addr,
                     &values,
                 );
+                #[allow(clippy::cast_possible_truncation)]
                 future::ready(Ok(Response::WriteMultipleRegisters(
                     addr,
                     values.len() as u16,
@@ -96,7 +96,6 @@ fn register_read(db: &Database, id_user: IdUser, addr: u16, cnt: u16) -> Vec<u16
 
 /// Write a holding register. Used by both the write single register
 /// and write multiple registers requests.
-#[allow(clippy::cast_possible_truncation)]
 fn register_write(db: &mut Database, id_user: IdUser, addr: u16, values: &[u16]) {
     println!(
         "Server MODBUS/TCP: Write {} words @{:04X}: {:?}",
@@ -105,6 +104,7 @@ fn register_write(db: &mut Database, id_user: IdUser, addr: u16, values: &[u16])
         values
     );
     for (i, value) in values.iter().enumerate() {
+        #[allow(clippy::cast_possible_truncation)]
         let reg_addr = addr + i as u16;
         if reg_addr < MODBUS_TOP_WORD_ADDRESS {
             db.set_u16_to_word_address(id_user, reg_addr, *value);

@@ -169,7 +169,7 @@ fn check_notification_changes(
         // Verrouiller la database partagée
         let mut db = afsec_service.thread_db.lock().unwrap();
 
-        // Voir s'il y a un notification d'un autre utilisateur
+        // Voir s'il y a une notification d'un autre utilisateur
         if let Some(notification_change) = db.get_change(afsec_service.id_user, false, true) {
             if let Some(tag) = db.get_tag_from_id_tag(notification_change.id_tag) {
                 let id_user = notification_change.id_user;

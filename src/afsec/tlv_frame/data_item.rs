@@ -39,7 +39,8 @@ impl fmt::Display for DataItem {
 impl DataItem {
     /// Constructeur
     #[allow(dead_code)]
-    pub fn new(tag: u8, t_format: TFormat, t_value: TValue) -> Self {
+    pub fn new(tag: u8, t_value: TValue) -> Self {
+        let t_format = TFormat::from(&t_value);
         Self {
             tag,
             t_format,
@@ -61,7 +62,7 @@ impl DataItem {
             return Err(FrameError::BadDataLength);
         }
         match be_data::decode(t_format, &values[2..]) {
-            Ok(t_value) => Ok((DataItem::new(tag, t_format, t_value), data_item_len)),
+            Ok(t_value) => Ok((DataItem::new(tag, t_value), data_item_len)),
             Err(_) => Err(FrameError::BadDataItem),
         }
     }
@@ -121,7 +122,7 @@ mod tests {
         ] {
             let tag = 12;
             let t_format = TFormat::from(&t_value);
-            let data_item_in = DataItem::new(tag, t_format, t_value.clone());
+            let data_item_in = DataItem::new(tag, t_value.clone());
             let vec_u8 = DataItem::encode(&data_item_in);
             let result_data_item_out = DataItem::decode(&vec_u8);
             assert!(result_data_item_out.is_ok());
@@ -137,22 +138,14 @@ mod tests {
     fn test_multiple_decode() {
         // Liste des DataItem dans un même Vec<u8>
         let test_data_items = vec![
-            DataItem::new(1, TFormat::Bool, TValue::Bool(true)),
-            DataItem::new(2, TFormat::U16, TValue::U16(123)),
-            DataItem::new(
-                3,
-                TFormat::VecU8(3),
-                TValue::VecU8(3, string_to_vec_u8("ABC")),
-            ),
-            DataItem::new(4, TFormat::F32, TValue::F32(1.23)),
-            DataItem::new(
-                5,
-                TFormat::VecU8(3),
-                TValue::VecU8(3, vec![0xFF, 0x00, 0xFF]),
-            ),
-            DataItem::new(6, TFormat::I16, TValue::I16(-123)),
-            DataItem::new(7, TFormat::VecU8(0), TValue::VecU8(0, vec![])),
-            DataItem::new(8, TFormat::I64, TValue::I64(-1_000_000_000)),
+            DataItem::new(1, TValue::Bool(true)),
+            DataItem::new(2, TValue::U16(123)),
+            DataItem::new(3, TValue::VecU8(3, string_to_vec_u8("ABC"))),
+            DataItem::new(4, TValue::F32(1.23)),
+            DataItem::new(5, TValue::VecU8(3, vec![0xFF, 0x00, 0xFF])),
+            DataItem::new(6, TValue::I16(-123)),
+            DataItem::new(7, TValue::VecU8(0, vec![])),
+            DataItem::new(8, TValue::I64(-1_000_000_000)),
         ];
 
         // Création d'un Vec<u8> contenant tous les test_data_items

@@ -24,7 +24,20 @@ pub enum TValue {
 
 impl fmt::Display for TValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", String::from(self))
+        match self {
+            TValue::Bool(value) => write!(f, "Bool({})", *value),
+            TValue::U8(value) => write!(f, "U8({})", *value),
+            TValue::I8(value) => write!(f, "I8({})", *value),
+            TValue::U16(value) => write!(f, "U16({})", *value),
+            TValue::I16(value) => write!(f, "I16({})", *value),
+            TValue::U32(value) => write!(f, "U32({})", *value),
+            TValue::I32(value) => write!(f, "I32({})", *value),
+            TValue::U64(value) => write!(f, "U64({})", *value),
+            TValue::I64(value) => write!(f, "I64({})", *value),
+            TValue::F32(value) => write!(f, "F32({})", *value),
+            TValue::F64(value) => write!(f, "F34({})", *value),
+            TValue::VecU8(len, value) => write!(f, "VecU8({}, {:?})", *len, value),
+        }
     }
 }
 

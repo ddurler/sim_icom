@@ -50,7 +50,6 @@ mod tests {
         raw_frame
             .try_extend_data_item(&DataItem::new(
                 0x45,
-                TFormat::VecU8(5),
                 TValue::VecU8(5, string_to_vec_u8("ABCDE")),
             ))
             .unwrap();
@@ -76,7 +75,6 @@ mod tests {
         raw_frame
             .try_extend_data_item(&DataItem::new(
                 0x45,
-                TFormat::VecU8(5),
                 TValue::VecU8(5, vec![0x80, 0x90, 0xA0, 0xC0, 0xF0]),
             ))
             .unwrap();
@@ -104,21 +102,18 @@ mod tests {
         raw_frame
             .try_extend_data_item(&DataItem::new(
                 0x45,
-                TFormat::VecU8(1),
                 TValue::VecU8(1, string_to_vec_u8("X")),
             ))
             .unwrap();
         raw_frame
             .try_extend_data_item(&DataItem::new(
                 0x67,
-                TFormat::VecU8(1),
                 TValue::VecU8(1, string_to_vec_u8("Y")),
             ))
             .unwrap();
         raw_frame
             .try_extend_data_item(&DataItem::new(
                 0x89,
-                TFormat::VecU8(1),
                 TValue::VecU8(1, string_to_vec_u8("Z")),
             ))
             .unwrap();
@@ -151,7 +146,7 @@ mod tests {
         /* Construction avec un booléen */
         let mut raw_frame = RawFrame::new_message(0x23);
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x45, TFormat::Bool, TValue::Bool(true)))
+            .try_extend_data_item(&DataItem::new(0x45, TValue::Bool(true)))
             .unwrap();
         assert_eq!(
             raw_frame.encode(),
@@ -172,16 +167,16 @@ mod tests {
         /* Construction avec 4 booléens */
         let mut raw_frame = RawFrame::new_message(0x01);
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x23, TFormat::Bool, TValue::Bool(true)))
+            .try_extend_data_item(&DataItem::new(0x23, TValue::Bool(true)))
             .unwrap();
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x45, TFormat::Bool, TValue::Bool(false)))
+            .try_extend_data_item(&DataItem::new(0x45, TValue::Bool(false)))
             .unwrap();
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x67, TFormat::Bool, TValue::Bool(false)))
+            .try_extend_data_item(&DataItem::new(0x67, TValue::Bool(false)))
             .unwrap();
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x89, TFormat::Bool, TValue::Bool(true)))
+            .try_extend_data_item(&DataItem::new(0x89, TValue::Bool(true)))
             .unwrap();
         assert_eq!(
             raw_frame.encode(),
@@ -217,7 +212,7 @@ mod tests {
         /* Construction avec un unsigned char */
         let mut raw_frame = RawFrame::new_message(0x23);
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x45, TFormat::U8, TValue::U8(123)))
+            .try_extend_data_item(&DataItem::new(0x45, TValue::U8(123)))
             .unwrap();
         assert_eq!(
             raw_frame.encode(),
@@ -238,7 +233,7 @@ mod tests {
         /* Construction avec un signed char */
         let mut raw_frame = RawFrame::new_message(0x23);
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x45, TFormat::I8, TValue::I8(-123)))
+            .try_extend_data_item(&DataItem::new(0x45, TValue::I8(-123)))
             .unwrap();
         assert_eq!(
             raw_frame.encode(),
@@ -259,7 +254,7 @@ mod tests {
         /* Construction avec un unsigned int */
         let mut raw_frame = RawFrame::new_message(0x23);
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x45, TFormat::U16, TValue::U16(123)))
+            .try_extend_data_item(&DataItem::new(0x45, TValue::U16(123)))
             .unwrap();
         assert_eq!(
             raw_frame.encode(),
@@ -280,7 +275,7 @@ mod tests {
         /* Construction avec un signed int */
         let mut raw_frame = RawFrame::new_message(0x23);
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x45, TFormat::I16, TValue::I16(-123)))
+            .try_extend_data_item(&DataItem::new(0x45, TValue::I16(-123)))
             .unwrap();
         assert_eq!(
             raw_frame.encode(),
@@ -301,7 +296,7 @@ mod tests {
         /* Construction avec un unsigned long int */
         let mut raw_frame = RawFrame::new_message(0x23);
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x45, TFormat::U32, TValue::U32(123)))
+            .try_extend_data_item(&DataItem::new(0x45, TValue::U32(123)))
             .unwrap();
         assert_eq!(
             raw_frame.encode(),
@@ -322,7 +317,7 @@ mod tests {
         /* Construction avec un signed long int */
         let mut raw_frame = RawFrame::new_message(0x23);
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x45, TFormat::I32, TValue::I32(-123)))
+            .try_extend_data_item(&DataItem::new(0x45, TValue::I32(-123)))
             .unwrap();
         assert_eq!(
             raw_frame.encode(),
@@ -343,7 +338,7 @@ mod tests {
         /* Construction avec un float */
         let mut raw_frame = RawFrame::new_message(0x23);
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x45, TFormat::F32, TValue::F32(-123.0)))
+            .try_extend_data_item(&DataItem::new(0x45, TValue::F32(-123.0)))
             .unwrap();
         assert_eq!(
             raw_frame.encode(),
@@ -364,7 +359,7 @@ mod tests {
         /* Construction avec un unsigned long long int */
         let mut raw_frame = RawFrame::new_message(0x23);
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x45, TFormat::U64, TValue::U64(123)))
+            .try_extend_data_item(&DataItem::new(0x45, TValue::U64(123)))
             .unwrap();
         assert_eq!(
             raw_frame.encode(),
@@ -388,7 +383,7 @@ mod tests {
         /* Construction avec un double float */
         let mut raw_frame = RawFrame::new_message(0x23);
         raw_frame
-            .try_extend_data_item(&DataItem::new(0x45, TFormat::F64, TValue::F64(-123.0)))
+            .try_extend_data_item(&DataItem::new(0x45, TValue::F64(-123.0)))
             .unwrap();
         assert_eq!(
             raw_frame.encode(),
@@ -422,7 +417,6 @@ mod tests {
             /* Data max len=250 */
             if let Ok(()) = raw_frame.try_extend_data_item(&DataItem::new(
                 0x01,
-                TFormat::VecU8(26),
                 TValue::VecU8(26, string_to_vec_u8("ABCDEFGHIJKLMNOPQRSTUVWXYZ")),
             )) {
             } else {

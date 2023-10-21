@@ -151,7 +151,6 @@ impl MPackOut {
     }
 
     /// Termine la transaction `pack-in` en cours
-    #[allow(clippy::cast_lossless)]
     fn end_transaction(context: &mut Context, afsec_service: &mut DatabaseAfsecComm) {
         if !context.pack_out.is_transaction {
             // Pas de transaction en cours...
@@ -173,6 +172,7 @@ impl MPackOut {
         if let Some(base_word_address) = some_base_word_address {
             // Parcourt des paquets de la copie privée mémorisée pendant la transaction
             for (word_address, vec_u8) in &context.pack_out.private_datas {
+                #[allow(clippy::cast_lossless)]
                 let word_address = base_word_address + *word_address as u16;
                 {
                     // Verrouiller la database partagée
@@ -194,5 +194,92 @@ impl MPackOut {
         // Hors transaction maintenant
         context.pack_out.is_transaction = false;
         println!("AFSEC Comm: AF_PACK_OUT ends transaction");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::sync::{Arc, Mutex};
+
+    use crate::afsec::tlv_frame::DataItem;
+    use crate::database::ID_ANONYMOUS_USER;
+    use crate::t_data::TFormat;
+    use crate::{database::Tag, Database};
+
+    #[test]
+    fn test_conversation() {
+        // Création d'une database
+        let mut db = Database::default();
+
+        // Adresse (arbitraire) de la zone 'pack-out' dans la database
+        let word_address_pack_out = 0x0010;
+
+        // id_tag correspondant à la 1ere zone 'pack-out (en zone 4) dans la database
+        let id_tag = IdTag::new(4, TAG_DATA_PACK, [0, 0, 0]);
+        let tag = Tag {
+            word_address: word_address_pack_out,
+            id_tag,
+            t_format: TFormat::VecU8(64),
+            ..Default::default()
+        };
+        db.add_tag(&tag);
+
+        // Choix d'une adresse mot (0-31 car une seule zone de 32 mots pour ce test)
+        // et des valeurs (u8) dans la zone 'pack-out
+        let test_address = 10_u16;
+        let test_values = vec![1_u8, 2_u8, 3_u8, 4_u8];
+
+        // Créer la database partagée mutable
+        let shared_db = Arc::new(Mutex::new(db));
+        // Cloner la référence à la database partagée pour la communication avec l'AFSEC+
+        let db_afsec = Arc::clone(&shared_db);
+
+        // Création contexte pour les middlewares
+        let mut context = Context::default();
+        let mut afsec_service = DatabaseAfsecComm::new(db_afsec, "fake".to_string());
+
+        // Création d'une requête AFSEC+ AF_PACK_OUT pour changer la valeur dans le pack-out
+        let mut request = RawFrame::new_message(id_message::AF_PACK_OUT);
+        let mut payload = vec![];
+        // Octet #0: num_paquet/total_paquet
+        payload.push(0x11);
+        // Octet #1: adresse mot
+        #[allow(clippy::cast_possible_truncation)]
+        payload.push(test_address as u8);
+        // Octets suivants avec les valeurs
+        payload.extend(test_values.clone());
+        let data_item = DataItem::new(
+            id_message::D_PACK_PAYLOAD,
+            TValue::VecU8(payload.len(), payload),
+        );
+        request.try_extend_data_item(&data_item).unwrap();
+        let request = DataFrame::try_from(request).unwrap();
+
+        // Envoi du message au middleware
+        let middleware = MPackOut::default();
+        let response = middleware
+            .get_conversation(&mut context, &mut afsec_service, &request)
+            .unwrap();
+
+        // Le middleware doit avoir réponde ACK
+        assert_eq!(response, RawFrame::new_ack());
+
+        // Et on doit maintenant lire les valeurs dans la zone pack-out de la database
+        {
+            // Verrouiller la database partagée
+            let db: std::sync::MutexGuard<'_, crate::database::Database> =
+                afsec_service.thread_db.lock().unwrap();
+
+            assert_eq!(
+                db.get_vec_u8_from_word_address(
+                    ID_ANONYMOUS_USER,
+                    word_address_pack_out + test_address,
+                    test_values.len()
+                ),
+                test_values
+            );
+        }
     }
 }

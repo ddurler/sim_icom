@@ -2,7 +2,7 @@
 
 use super::{
     id_message, utils, CommonMiddlewareTrait, Context, DataFrame, DataItem, DatabaseAfsecComm,
-    IdTag, IdUser, RawFrame, TFormat, TValue,
+    IdTag, IdUser, RawFrame, TValue,
 };
 
 #[derive(Default)]
@@ -97,16 +97,11 @@ impl CommonMiddlewareTrait for MInit {
         response_raw_frame
             .try_extend_data_item(&DataItem::new(
                 id_message::D_PROTOCOLE_VERSION,
-                TFormat::U16,
                 TValue::U16(0),
             ))
             .unwrap();
         response_raw_frame
-            .try_extend_data_item(&DataItem::new(
-                id_message::D_ICOM_VERSION,
-                TFormat::U16,
-                TValue::U16(0),
-            ))
+            .try_extend_data_item(&DataItem::new(id_message::D_ICOM_VERSION, TValue::U16(0)))
             .unwrap();
 
         // Réponse

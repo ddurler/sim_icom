@@ -202,7 +202,6 @@ impl Database {
     /// nombre de mots à partir de cette [`WordAddress`] dans la [`Database`]
     #[allow(dead_code)]
     #[allow(while_true)]
-    #[allow(clippy::cast_possible_truncation)]
     pub fn get_tags_from_word_address_area(
         &self,
         word_address: WordAddress,
@@ -239,6 +238,7 @@ impl Database {
         // On va inclure également tous les tags suivants qui empiètent...
         let mut forward_word_address = word_address;
         while true {
+            #[allow(clippy::cast_possible_truncation)]
             if forward_word_address > word_address + nb_words as u16 {
                 // On est en dehors de la zone spécifiée
                 break;

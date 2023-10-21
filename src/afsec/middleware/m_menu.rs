@@ -14,7 +14,6 @@ pub struct MMenu {}
 impl CommonMiddlewareTrait for MMenu {
     fn reset_conversation(&self, _context: &mut Context) {}
 
-    #[allow(clippy::cast_possible_truncation)]
     fn get_conversation(
         &self,
         _context: &mut Context,

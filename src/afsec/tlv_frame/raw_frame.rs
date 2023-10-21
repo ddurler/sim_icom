@@ -411,7 +411,7 @@ impl RawFrame {
 mod tests {
     use super::*;
 
-    use crate::t_data::{TFormat, TValue};
+    use crate::t_data::TValue;
 
     #[test]
     fn test_constructor_ack() {
@@ -435,14 +435,14 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::cast_possible_truncation)]
     fn test_decode_message() {
         // Contenu du message pour le test
         let message_tag = 1;
-        let data_item = DataItem::new(2, TFormat::U16, TValue::U16(123));
+        let data_item = DataItem::new(2, TValue::U16(123));
 
         // Éléments théorique du contenu du message
         let data_item_vec_u8 = data_item.encode();
+        #[allow(clippy::cast_possible_truncation)]
         let data_item_vec_u8_len = data_item_vec_u8.len() as u8;
         let xor = RawFrame::calcul_xor(message_tag, data_item_vec_u8_len, &data_item_vec_u8);
         // Octets de cette trame
