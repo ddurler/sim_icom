@@ -51,6 +51,9 @@ use m_data_in::MDataIn;
 mod m_data_out_table_index;
 use m_data_out_table_index::MDataOutTableIndex;
 
+mod m_menu;
+use m_menu::MMenu;
+
 /// Tag pour la zone `PACK_IN` (en zone 5) ou `PACK_OUT` (en zone 4)
 /// Voir SR DEV 004
 pub const TAG_DATA_PACK: u16 = 0x0F45;
@@ -124,6 +127,7 @@ impl Middlewares {
             Box::<MDataOut>::default(),
             Box::<MDataIn>::default(),
             Box::<MDataOutTableIndex>::default(),
+            Box::<MMenu>::default(),
         ]
     }
 
