@@ -57,7 +57,10 @@ pub fn decode(t_format: TFormat, vec_u8: &[u8]) -> Result<TValue, &'static str> 
                 let vec_u8: [u8; 8] = vec_u8.try_into().unwrap();
                 TValue::F64(f64::from_be_bytes(vec_u8))
             }
-            TFormat::VecU8(n) => TValue::VecU8(n, vec_u8.clone()),
+            TFormat::VecU8(n) => {
+                let vec_u8 = vec_u8.clone()[0..n].to_vec();
+                TValue::VecU8(n, vec_u8)
+            }
         })
     }
 }

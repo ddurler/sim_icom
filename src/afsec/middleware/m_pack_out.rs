@@ -179,6 +179,7 @@ impl MPackOut {
                     let mut db: std::sync::MutexGuard<'_, crate::database::Database> =
                         afsec_service.thread_db.lock().unwrap();
 
+                    println!("AFSEC Comm: AF_DATA_OUT update @{word_address:04X} = {vec_u8:?}");
                     db.set_vec_u8_to_word_address(afsec_service.id_user, word_address, vec_u8);
                 };
             }

@@ -8,7 +8,7 @@
 
 use super::{
     id_message, utils, CommonMiddlewareTrait, Context, DataFrame, DataItem, DatabaseAfsecComm,
-    IdTag, IdUser, RawFrame, TValue,
+    IdTag, IdUser, RawFrame, TValue, TAG_DATA_PACK,
 };
 
 #[derive(Default)]
@@ -104,8 +104,9 @@ impl CommonMiddlewareTrait for MDataIn {
         id_tag: IdTag,
         t_value: &TValue,
     ) {
-        if id_user != afsec_service.id_user {
-            // On ne retient que les changements d'autres utilisateurs
+        if id_user != afsec_service.id_user && id_tag.num_tag != TAG_DATA_PACK {
+            // On ne retient que les changements d'autres utilisateurs et qui ne
+            // concernent pas les changements gérés par le 'pack-in'
             context.notification_changes.push((id_tag, t_value.clone()));
         }
     }

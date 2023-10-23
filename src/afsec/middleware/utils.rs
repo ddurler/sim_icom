@@ -60,7 +60,16 @@ pub fn update_database(afsec_service: &mut DatabaseAfsecComm, id_tag: IdTag, t_v
         TValue::I64(value) => db.set_i64_to_id_tag(afsec_service.id_user, id_tag, value),
         TValue::F32(value) => db.set_f32_to_id_tag(afsec_service.id_user, id_tag, value),
         TValue::F64(value) => db.set_f64_to_id_tag(afsec_service.id_user, id_tag, value),
-        TValue::VecU8(_, value) => db.set_vec_u8_to_id_tag(afsec_service.id_user, id_tag, &value),
+        TValue::VecU8(len, value) => {
+            let mut vec_u8 = value.clone();
+            while vec_u8.len() < len {
+                vec_u8.push(0);
+            }
+            if vec_u8.len() > len {
+                vec_u8 = vec_u8[0..len].to_vec();
+            }
+            db.set_vec_u8_to_id_tag(afsec_service.id_user, id_tag, &vec_u8);
+        }
     }
 }
 

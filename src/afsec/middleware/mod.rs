@@ -133,7 +133,6 @@ impl Middlewares {
 
     /// Reset conversation de tous les `middlewares`
     fn reset_conversation_all_middlewares(&mut self) {
-        println!("AFSEC Comm: reset_conversation_all_middlewares");
         for middleware in Self::all_middlewares() {
             middleware.reset_conversation(&mut self.context);
         }
@@ -251,13 +250,322 @@ impl Middlewares {
 
         // Pas de `middleware` pour répondre...
         if request_data_frame.get_tag() == id_message::AF_ALIVE {
-            // On répond IC_ALIVE
+            // On peut répondre IC_ALIVE ou ACK
             println!("AFSEC Comm: AF_ALIVE...");
-            RawFrame::new_message(id_message::IC_ALIVE)
+            RawFrame::new_ack()
         } else {
             // Répond NACK
             println!("AFSEC Comm: NACK...");
             RawFrame::new_nack()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::sync::{Arc, Mutex};
+
+    use crate::afsec::check_notification_changes;
+    use crate::afsec::tlv_frame::DataItem;
+    use crate::afsec::tlv_frame::FrameState;
+    use crate::database::Tag;
+    use crate::database::ID_ANONYMOUS_USER;
+    use crate::t_data::TFormat;
+    use crate::Database;
+
+    // Adresse mot de base pour les 'pack-out'
+    const ADDRESS_WORD_PACK_OUT: u16 = 0x4000;
+
+    // Adresse mot de base pour les 'pack-in'
+    const ADDRESS_WORD_PACK_IN: u16 = 0x5000;
+
+    // Retourne un tag UI_16 de la database pour faire les tests
+    fn test_tag() -> Tag {
+        let id_tag = IdTag::new(4, 0x1234, [0, 0, 0]);
+        Tag {
+            word_address: 0x0800,
+            id_tag,
+            t_format: TFormat::U16,
+            ..Default::default()
+        }
+    }
+
+    // Création du Mutex database pour le process en communication avec l'AFSEC+
+    fn database_setup() -> DatabaseAfsecComm {
+        // Création d'une database
+        let mut db = Database::default();
+
+        // Création d'un id_user pour le test
+        let id_user = db.get_id_user("TEST", true);
+
+        // Création du tag de test
+        db.add_tag(&test_tag());
+
+        // Création tags pour les zones 'pack-out' et 'pack-in'
+        for (zone, base_address) in [(4_u8, ADDRESS_WORD_PACK_OUT), (5_u8, ADDRESS_WORD_PACK_IN)] {
+            for n in 0..8 {
+                let id_tag = IdTag::new(zone, TAG_DATA_PACK, [0, 0, n]);
+                #[allow(clippy::cast_lossless)]
+                let tag = Tag {
+                    word_address: base_address + 32 * n as u16,
+                    id_tag,
+                    t_format: TFormat::VecU8(64),
+                    ..Default::default()
+                };
+                db.add_tag(&tag);
+            }
+        }
+
+        // Créer la database partagée mutable
+        let shared_db = Arc::new(Mutex::new(db));
+        // Cloner la référence à la database partagée pour la communication avec l'AFSEC+
+        let db_afsec = Arc::clone(&shared_db);
+
+        // Structure pour le thread en communication avec l'AFSEC+
+        let mut afsec_service = DatabaseAfsecComm::new(db_afsec, "fake".to_string());
+        afsec_service.id_user = id_user;
+        afsec_service
+    }
+
+    // Création d'une trame AF_INIT
+    fn request_raw_frame_init() -> RawFrame {
+        let mut req = RawFrame::new_message(id_message::AF_INIT);
+        req.try_extend_data_item(&DataItem::new(
+            id_message::D_PROTOCOLE_VERSION,
+            TValue::U32(0),
+        ))
+        .unwrap();
+        req.try_extend_data_item(&DataItem::new(
+            id_message::D_RESIDENT_VERSION,
+            TValue::U32(5_02_00),
+        ))
+        .unwrap();
+        req.try_extend_data_item(&DataItem::new(
+            id_message::D_APPLI_NUMBER,
+            TValue::I16(-352),
+        ))
+        .unwrap();
+        req.try_extend_data_item(&DataItem::new(
+            id_message::D_APPLI_VERSION,
+            TValue::U32(13_01_00),
+        ))
+        .unwrap();
+        req.try_extend_data_item(&DataItem::new(
+            id_message::D_APPLI_CONFIG,
+            TValue::VecU8(4, "TEST".as_bytes().to_vec()),
+        ))
+        .unwrap();
+        req.try_extend_data_item(&DataItem::new(
+            id_message::D_LANGUAGE,
+            TValue::VecU8(2, "fr".as_bytes().to_vec()),
+        ))
+        .unwrap();
+
+        req
+    }
+
+    // Création d'une trame AF_ALIVE
+    fn request_raw_frame_alive() -> RawFrame {
+        RawFrame::new_message(id_message::AF_ALIVE)
+    }
+
+    // Création d'une trame AF_DATA_OUT
+    #[allow(clippy::cast_possible_truncation)]
+    fn request_raw_frame_data_out(datas: &[(IdTag, TValue)]) -> RawFrame {
+        let mut req = RawFrame::new_message(id_message::AF_DATA_OUT);
+        let mut cur_zone = 0xFF;
+        for (id_tag, t_value) in datas {
+            if cur_zone != id_tag.zone {
+                cur_zone = id_tag.zone;
+                req.try_extend_data_item(&DataItem::new(
+                    id_message::D_DATA_ZONE,
+                    TValue::U8(id_tag.zone),
+                ))
+                .unwrap();
+            }
+
+            let vec_u8_tag = vec![
+                (id_tag.num_tag / 256) as u8,
+                (id_tag.num_tag % 256) as u8,
+                id_tag.indice_0,
+                id_tag.indice_1,
+                id_tag.indice_2,
+            ];
+            req.try_extend_data_item(&DataItem::new(
+                id_message::D_DATA_TAG,
+                TValue::VecU8(5, vec_u8_tag),
+            ))
+            .unwrap();
+
+            req.try_extend_data_item(&DataItem::new(id_message::D_DATA_VALUE, t_value.clone()))
+                .unwrap();
+        }
+
+        req
+    }
+
+    // Création d'une trame AF_PACK_OUT
+    #[allow(clippy::cast_possible_truncation)]
+    fn request_raw_frame_pack_out(datas: &[(u8, Vec<u8>)]) -> RawFrame {
+        let mut req = RawFrame::new_message(id_message::AF_PACK_OUT);
+        let nb_packets = datas.len();
+        for (i, (address, vec_u8)) in datas.iter().enumerate() {
+            let mut vec_u8_payload = vec![];
+            // Octet #0: Message num/total (0x12 pour message #1/2)
+            vec_u8_payload.push(((i as u8) + 1) * 16 + nb_packets as u8);
+            // Octet #1: Adresse mot
+            vec_u8_payload.push(*address);
+            // Autres octets: Data
+            vec_u8_payload.extend(vec_u8);
+            req.try_extend_data_item(&DataItem::new(
+                id_message::D_PACK_PAYLOAD,
+                TValue::VecU8(vec_u8_payload.len(), vec_u8_payload),
+            ))
+            .unwrap();
+        }
+
+        req
+    }
+
+    // Vérifie une réponse RawFrame de l'ICOM
+    fn ok_response_raw_frame(tag: u8, response: &RawFrame) -> bool {
+        assert_eq!(response.get_state(), FrameState::Ok);
+        let response = match DataFrame::try_from(response.clone()) {
+            Ok(t) => t,
+            Err(e) => {
+                panic!("{e}");
+            }
+        };
+        assert_eq!(response.get_tag(), tag);
+
+        for data_item in response.get_data_items() {
+            assert!(
+                data_item.tag != id_message::D_DATA_ERROR,
+                "Réponse avec D_DATA_ERROR"
+            );
+        }
+
+        true
+    }
+
+    // Vérifie qu'un ACK est reçu en réponse RawFrame de l'ICOM
+    fn ok_ack_raw_frame(response: &RawFrame) -> bool {
+        assert_eq!(response.get_state(), FrameState::Ok);
+        let response = match DataFrame::try_from(response.clone()) {
+            Ok(t) => t,
+            Err(e) => {
+                panic!("{e}");
+            }
+        };
+        response.is_simple_ack()
+    }
+
+    // Simule une modification de la valeur du `test_tag` dans la database
+    fn do_update_test_tag(
+        afsec_service: &mut DatabaseAfsecComm,
+        middlewares: &mut Middlewares,
+        value: u16,
+    ) {
+        // Modification de la database
+        {
+            // Verrouiller la database partagée
+            let mut db: std::sync::MutexGuard<'_, crate::database::Database> =
+                afsec_service.thread_db.lock().unwrap();
+
+            db.set_u16_to_id_tag(ID_ANONYMOUS_USER, test_tag().id_tag, value);
+        }
+
+        // Active le système de notification
+        check_notification_changes(afsec_service, middlewares);
+    }
+
+    // Simule une modification du 'pack-in' dans la database
+    fn do_update_pack_in(
+        afsec_service: &mut DatabaseAfsecComm,
+        middlewares: &mut Middlewares,
+        address: u16,
+        value: &[u8],
+    ) {
+        // Contrôle cohérence de la modification (256 mots max dans la zone `pack-in`)
+        assert!((0..256).contains(&address));
+        assert!(address as usize + value.len() / 2 < 256);
+
+        {
+            // Verrouiller la database partagée
+            let mut db: std::sync::MutexGuard<'_, crate::database::Database> =
+                afsec_service.thread_db.lock().unwrap();
+
+            db.set_vec_u8_to_word_address(ID_ANONYMOUS_USER, ADDRESS_WORD_PACK_IN + address, value);
+        }
+
+        // Active le système de notification
+        check_notification_changes(afsec_service, middlewares);
+    }
+
+    #[test]
+    fn test_conversation() {
+        let mut afsec_service = database_setup();
+        let mut middlewares = Middlewares::new();
+
+        // Conversation AF_INIT/IC_INIT (pour débuter)
+        let request = request_raw_frame_init();
+        let response = middlewares.handle_request_raw_frame(&mut afsec_service, request);
+        assert!(ok_response_raw_frame(id_message::IC_INIT, &response));
+
+        // Conversation AF_ALIVE/IC_ALIVE ou ACK (personne n'a rien à dire)
+        let request = request_raw_frame_alive();
+        let response = middlewares.handle_request_raw_frame(&mut afsec_service, request);
+        assert!(
+            ok_ack_raw_frame(&response) || ok_response_raw_frame(id_message::IC_ALIVE, &response)
+        );
+
+        // Conversation AF_DATA_OUT/IC_DATA_OUT ou ACK
+        let request = request_raw_frame_data_out(&[
+            (IdTag::new(0, 0x1234, [5, 6, 7]), TValue::U16(123)),
+            (IdTag::new(0, 0x2345, [6, 7, 8]), TValue::F32(-123.0)),
+            (
+                IdTag::new(1, 0x3456, [7, 8, 9]),
+                TValue::VecU8(3, "123".as_bytes().to_vec()),
+            ),
+        ]);
+        let response = middlewares.handle_request_raw_frame(&mut afsec_service, request);
+        assert!(
+            ok_ack_raw_frame(&response)
+                || ok_response_raw_frame(id_message::IC_DATA_OUT, &response)
+        );
+
+        // Conversation AF_PACK_OUT/IC_PACK_OUT ou ACK
+        let request = request_raw_frame_pack_out(&[
+            (0, vec![0_u8, 1_u8, 2_u8, 3_u8]),
+            (100, vec![100_u8, 101_u8, 102_u8, 103_u8]),
+        ]);
+        let response = middlewares.handle_request_raw_frame(&mut afsec_service, request);
+        assert!(
+            ok_ack_raw_frame(&response)
+                || ok_response_raw_frame(id_message::IC_PACK_OUT, &response)
+        );
+
+        // Simule une modification de la valeur du tag de test
+        do_update_test_tag(&mut afsec_service, &mut middlewares, 123);
+
+        // Conversation AF_ALIVE -> DATA_IN pour informer de cette modification
+        let request = request_raw_frame_alive();
+        let response = middlewares.handle_request_raw_frame(&mut afsec_service, request);
+        assert!(ok_response_raw_frame(id_message::IC_DATA_IN, &response));
+
+        // Simule une modification de la zone 'pack-in'
+        do_update_pack_in(
+            &mut afsec_service,
+            &mut middlewares,
+            10,
+            &[1_u8, 2_u8, 3_u8, 4_u8],
+        );
+
+        // Conversation AF_ALIVE -> PACK_IN pour informer de cette modification
+        let request = request_raw_frame_alive();
+        let response = middlewares.handle_request_raw_frame(&mut afsec_service, request);
+        assert!(ok_response_raw_frame(id_message::IC_PACK_IN, &response));
     }
 }

@@ -14,3 +14,8 @@ tokio-serial = "5.4"
 
 [dev-dependencies]
 assert_float_eq = "1.1"
+
+[profile.release]
+strip = true  # Automatically strip symboles from the binary
+lto = true  # Enable link time optimization
+codegen-units = 1  # Maximize size reduction optimizations

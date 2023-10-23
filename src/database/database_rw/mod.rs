@@ -140,8 +140,22 @@ impl Database {
     /// Copie un `&[u8]` dans la [`Database`] selon [`IdTag`]
     /// (Helper pour le `TValue::String`)
     pub fn set_vec_u8_to_id_tag(&mut self, id_user: IdUser, id_tag: IdTag, value: &[u8]) {
-        if let Some(id_tag) = self.get_tag_from_id_tag(id_tag) {
-            self.set_vec_u8_to_word_address(id_user, id_tag.word_address, value);
+        if let Some(tag) = self.get_tag_from_id_tag(id_tag) {
+            // S'il s'agit d'une chaîne de caractères de longueur connue, on adapte le Vec<u8> en le
+            // complétant avec des NULL ou en adaptant sa longueur...
+            let value = if let TFormat::VecU8(len) = tag.t_format {
+                let mut vec_u8 = value.to_vec();
+                while vec_u8.len() < len {
+                    vec_u8.push(0);
+                }
+                if vec_u8.len() > len {
+                    vec_u8 = vec_u8[0..len].to_vec();
+                }
+                vec_u8
+            } else {
+                value.to_vec()
+            };
+            self.set_vec_u8_to_word_address(id_user, tag.word_address, &value);
         }
     }
 

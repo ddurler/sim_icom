@@ -158,7 +158,8 @@ fn read_and_write(
 }
 
 /// Surveillances des `notification_changes` dans la `database` pour informer les `middlewares`
-fn check_notification_changes(
+/// (public car utilisé pour les tests...)
+pub fn check_notification_changes(
     afsec_service: &mut DatabaseAfsecComm,
     middlewares: &mut Middlewares,
 ) {

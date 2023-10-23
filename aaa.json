@@ -1,0 +1,26 @@
+{
+  "soft": {
+    "type": "Outil",
+    "group": "Générique",
+    "number": 9999,
+    "branch": "master",
+    "name": "sim_icom",
+    "date": 20231023,
+    "version": "0.1.0"
+  },
+  "changes": {
+    "imputation": 9501,
+    "short_description": "Création",
+    "long_description": [
+      "Création de l'outil pour test"
+    ],
+    "author": "DD",
+    "configuration": null,
+    "risk": null
+  },
+  "livrables": ["target/release/*.exe"],
+  "ignore": [".*",
+    "target/debug*", "target/doc*", "target/release/.*", "target/release/build*", "target/release/deps*",
+    "target/release/examples*", "target/release/incremental*", "target/tarpaulin*", "build*.profraw"
+  ]
+}

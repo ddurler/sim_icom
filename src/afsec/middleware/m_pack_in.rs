@@ -60,8 +60,8 @@ impl CommonMiddlewareTrait for MPackIn {
             MPackIn::start_transaction(context, afsec_service);
         }
 
-        // Décompte des AF_DATA_IN traités
-        context.nb_data_in += 1;
+        // Décompte des AF_PACK_IN traités
+        context.nb_pack_in += 1;
         println!("AFSEC Comm: AF_PACK_IN #{}...", context.nb_pack_in);
 
         // Préparation d'un message `IC_PACK_IN` pour transmettre des datas à l'AFSEC+
