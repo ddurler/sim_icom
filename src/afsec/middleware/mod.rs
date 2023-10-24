@@ -567,5 +567,12 @@ mod tests {
         let request = request_raw_frame_alive();
         let response = middlewares.handle_request_raw_frame(&mut afsec_service, request);
         assert!(ok_response_raw_frame(id_message::IC_PACK_IN, &response));
+
+        // Conversation AF_ALIVE/IC_ALIVE ou ACK (pour confirmer que plus personne n'a rien à dire)
+        let request = request_raw_frame_alive();
+        let response = middlewares.handle_request_raw_frame(&mut afsec_service, request);
+        assert!(
+            ok_ack_raw_frame(&response) || ok_response_raw_frame(id_message::IC_ALIVE, &response)
+        );
     }
 }
