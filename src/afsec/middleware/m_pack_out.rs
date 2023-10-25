@@ -205,6 +205,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use crate::afsec::tlv_frame::DataItem;
+    use crate::afsec::DEBUG_LEVEL_ALL;
     use crate::database::ID_ANONYMOUS_USER;
     use crate::t_data::TFormat;
     use crate::{database::Tag, Database};
@@ -239,7 +240,8 @@ mod tests {
 
         // Création contexte pour les middlewares
         let mut context = Context::default();
-        let mut afsec_service = DatabaseAfsecComm::new(db_afsec, "fake".to_string());
+        let mut afsec_service =
+            DatabaseAfsecComm::new(db_afsec, "fake".to_string(), DEBUG_LEVEL_ALL);
 
         // Création d'une requête AFSEC+ AF_PACK_OUT pour changer la valeur dans le pack-out
         let mut request = RawFrame::new_message(id_message::AF_PACK_OUT);

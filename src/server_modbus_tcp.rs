@@ -18,12 +18,17 @@ pub const MODBUS_TOP_WORD_ADDRESS: u16 = 0x8000;
 pub struct DatabaseService {
     thread_db: Arc<Mutex<Database>>,
     id_user: IdUser,
+    debug_level: u8,
 }
 
 impl DatabaseService {
     /// Constructeur
-    pub fn new(thread_db: Arc<Mutex<Database>>, id_user: IdUser) -> Self {
-        Self { thread_db, id_user }
+    pub fn new(thread_db: Arc<Mutex<Database>>, id_user: IdUser, debug_level: u8) -> Self {
+        Self {
+            thread_db,
+            id_user,
+            debug_level,
+        }
     }
 }
 
@@ -36,19 +41,30 @@ impl tokio_modbus::server::Service for DatabaseService {
     fn call(&self, req: Self::Request) -> Self::Future {
         match req {
             Request::ReadInputRegisters(addr, cnt) => {
-                let values =
-                    register_read(&self.thread_db.lock().unwrap(), self.id_user, addr, cnt);
+                let values = register_read(
+                    &self.thread_db.lock().unwrap(),
+                    self.id_user,
+                    self.debug_level,
+                    addr,
+                    cnt,
+                );
                 future::ready(Ok(Response::ReadInputRegisters(values)))
             }
             Request::ReadHoldingRegisters(addr, cnt) => {
-                let values =
-                    register_read(&self.thread_db.lock().unwrap(), self.id_user, addr, cnt);
+                let values = register_read(
+                    &self.thread_db.lock().unwrap(),
+                    self.id_user,
+                    self.debug_level,
+                    addr,
+                    cnt,
+                );
                 future::ready(Ok(Response::ReadHoldingRegisters(values)))
             }
             Request::WriteMultipleRegisters(addr, values) => {
                 register_write(
                     &mut self.thread_db.lock().unwrap(),
                     self.id_user,
+                    self.debug_level,
                     addr,
                     &values,
                 );
@@ -62,6 +78,7 @@ impl tokio_modbus::server::Service for DatabaseService {
                 register_write(
                     &mut self.thread_db.lock().unwrap(),
                     self.id_user,
+                    self.debug_level,
                     addr,
                     std::slice::from_ref(&value),
                 );
@@ -80,7 +97,7 @@ impl tokio_modbus::server::Service for DatabaseService {
 
 /// Helper function implementing reading registers from [`Database`].
 /// Used by both the input registers reading and the holding registers reading
-fn register_read(db: &Database, id_user: IdUser, addr: u16, cnt: u16) -> Vec<u16> {
+fn register_read(db: &Database, id_user: IdUser, debug_level: u8, addr: u16, cnt: u16) -> Vec<u16> {
     let mut response_values = vec![0; cnt.into()];
     for i in 0..cnt {
         let reg_addr = addr + i;
@@ -90,19 +107,23 @@ fn register_read(db: &Database, id_user: IdUser, addr: u16, cnt: u16) -> Vec<u16
             eprintln!("Server MODBUS/TCP: Read out of database {addr:04X} !!!");
         }
     }
-    println!("Server MODBUS/TCP: Read {cnt} words @{addr:04X}: {response_values:?}");
+    if debug_level > 1 {
+        println!("Server MODBUS/TCP: Read {cnt} words @{addr:04X}: {response_values:?}");
+    }
     response_values
 }
 
 /// Write a holding register. Used by both the write single register
 /// and write multiple registers requests.
-fn register_write(db: &mut Database, id_user: IdUser, addr: u16, values: &[u16]) {
-    println!(
-        "Server MODBUS/TCP: Write {} words @{:04X}: {:?}",
-        values.len(),
-        addr,
-        values
-    );
+fn register_write(db: &mut Database, id_user: IdUser, debug_level: u8, addr: u16, values: &[u16]) {
+    if debug_level > 1 {
+        println!(
+            "Server MODBUS/TCP: Write {} words @{:04X}: {:?}",
+            values.len(),
+            addr,
+            values
+        );
+    }
     for (i, value) in values.iter().enumerate() {
         #[allow(clippy::cast_possible_truncation)]
         let reg_addr = addr + i as u16;

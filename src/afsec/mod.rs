@@ -16,6 +16,12 @@ pub use middleware::Middlewares;
 /// Temporisation entre chaque surveillance pour les `notification_changes`
 const DURATION_NOTIFICATION_CHANGES_SECS: f32 = 1.0;
 
+/// Niveau debug Some
+pub const DEBUG_LEVEL_SOME: u8 = 1;
+
+/// Niveau debug All
+pub const DEBUG_LEVEL_ALL: u8 = 2;
+
 /// Wrapper de [`Database`] pour la communication série avec l'AFSEC
 pub struct DatabaseAfsecComm {
     /// Mutex pour l'accès à la base de données
@@ -26,15 +32,19 @@ pub struct DatabaseAfsecComm {
 
     /// Nom du port série choisi par l'utilisateur pour communiquer avec l'AFSEC+
     port_name: String,
+
+    /// Niveau de debug pour les affichages (0: None, 1: Some, 2: All)
+    debug_level: u8,
 }
 
 impl DatabaseAfsecComm {
     /// Constructeur
-    pub fn new(thread_db: Arc<Mutex<Database>>, port_name: String) -> Self {
+    pub fn new(thread_db: Arc<Mutex<Database>>, port_name: String, debug_level: u8) -> Self {
         Self {
             thread_db,
             id_user: ID_ANONYMOUS_USER, // Overwrite si le port est OK
             port_name,
+            debug_level,
         }
     }
 }

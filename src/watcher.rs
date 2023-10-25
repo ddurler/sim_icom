@@ -13,7 +13,13 @@ pub async fn database_watcher_process(
     cycle_in_msecs: u64,
     include_anonymous_changes: bool,
 ) {
-    println!("WATCHER: Starting...");
+    // Inhibition du watcher si pas de tempo de cycle
+
+    if cycle_in_msecs == 0 {
+        println!("WATCHER: Skipped (to cycle) !!!");
+        return;
+    }
+    println!("WATCHER: Starting (cycle={cycle_in_msecs} msecs)...");
 
     let id_user;
     {

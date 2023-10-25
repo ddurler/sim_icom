@@ -270,6 +270,7 @@ mod tests {
     use crate::afsec::check_notification_changes;
     use crate::afsec::tlv_frame::DataItem;
     use crate::afsec::tlv_frame::FrameState;
+    use crate::afsec::DEBUG_LEVEL_ALL;
     use crate::database::Tag;
     use crate::database::ID_ANONYMOUS_USER;
     use crate::t_data::TFormat;
@@ -324,7 +325,8 @@ mod tests {
         let db_afsec = Arc::clone(&shared_db);
 
         // Structure pour le thread en communication avec l'AFSEC+
-        let mut afsec_service = DatabaseAfsecComm::new(db_afsec, "fake".to_string());
+        let mut afsec_service =
+            DatabaseAfsecComm::new(db_afsec, "fake".to_string(), DEBUG_LEVEL_ALL);
         afsec_service.id_user = id_user;
         afsec_service
     }
