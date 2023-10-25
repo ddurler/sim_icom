@@ -54,6 +54,10 @@ impl RecordData {
                     "    table_index={}, id_tag={}, t_value={}",
                     record.table_index, record.id_tag, record.t_value
                 );
+                // Informe le contexte
+                context
+                    .records
+                    .set_index(record.id_tag.zone, record.table_index);
             }
             // RAZ des données
             context.record_datas = vec![];

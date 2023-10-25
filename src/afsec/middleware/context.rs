@@ -1,6 +1,6 @@
 //! Contexte d'exécution pour les différents `middlewares`
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::{IdTag, RecordData, TValue};
 
@@ -43,11 +43,54 @@ pub struct Context {
     /// Liste des notification_changes pour la conversation DATA_IN
     pub notification_changes: Vec<(IdTag, TValue)>,
 
+    /// Contexte pour les journaux des enregistrements
+    pub records: Records,
+
     /// Contexte pour les transactions 'pack-in'
     pub pack_in: PackIn,
 
     /// Contexte pour les transactions 'pack-out'
     pub pack_out: PackOut,
+}
+
+/// Sous-structure du contexte pour les journaux (`DATA_OUT_TABLE_INDEX`)
+#[derive(Debug, Default)]
+pub struct Records {
+    /// index min selon la zone
+    index_min: HashMap<u8, u64>,
+
+    /// Index max selon la zone
+    index_max: HashMap<u8, u64>,
+}
+
+impl Records {
+    /// Retourne l'index min d'une zone ou 0 si non défini
+    pub fn get_index_min(&self, zone: u8) -> u64 {
+        match self.index_min.get(&zone) {
+            Some(index) => *index,
+            None => 0,
+        }
+    }
+
+    /// Retourne l'index max d'une zone ou 0 si non défini
+    pub fn get_index_max(&self, zone: u8) -> u64 {
+        match self.index_max.get(&zone) {
+            Some(index) => *index,
+            None => 0,
+        }
+    }
+
+    /// Annonce la présence d'un nouvelle index dans une zone
+    pub fn set_index(&mut self, zone: u8, index: u64) {
+        let prev_min = self.get_index_min(zone);
+        if prev_min == 0 || index < prev_min {
+            self.index_min.insert(zone, index);
+        }
+        let prev_max = self.get_index_max(zone);
+        if prev_max == 0 || prev_max < index {
+            self.index_max.insert(zone, index);
+        }
+    }
 }
 
 /// Sous-structure du contexte pour les transactions 'pack-in'
@@ -84,4 +127,24 @@ pub struct PackOut {
     /// Copie privée des données de la transaction `pack-in` en cours
     /// (.0 est l'adresse mot (0-255) de début et .1 contient les données)
     pub private_datas: Vec<(u8, Vec<u8>)>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_context_records() {
+        let mut records = Records::default();
+        assert_eq!(records.get_index_min(2), 0);
+        assert_eq!(records.get_index_max(2), 0);
+
+        records.set_index(2, 1234);
+        assert_eq!(records.get_index_min(2), 1234);
+        assert_eq!(records.get_index_max(2), 1234);
+
+        records.set_index(2, 6789);
+        assert_eq!(records.get_index_min(2), 1234);
+        assert_eq!(records.get_index_max(2), 6789);
+    }
 }

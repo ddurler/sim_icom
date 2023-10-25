@@ -5,7 +5,7 @@
 //! des résultats de mesurages (zone = 2, associée à la zone = 6 pour sa relecture) et les
 //! enregistrements des événements (zone = 3, associée à la zone = 7 pour sa relecture)
 //!
-//! Le simulateur n'enregistre rien. Aussi, il répond 0 pour les index de début/fin de tous les journaux.
+//! Le simulateur n'enregistre que les min/max des indices vus pour les différentes zone (voir `context.records`)
 
 use super::{
     id_message, CommonMiddlewareTrait, Context, DataFrame, DataItem, DatabaseAfsecComm, IdTag,
@@ -20,7 +20,7 @@ impl CommonMiddlewareTrait for MDataOutTableIndex {
 
     fn get_conversation(
         &self,
-        _context: &mut Context,
+        context: &mut Context,
         _afsec_service: &mut DatabaseAfsecComm,
         request_data_frame: &DataFrame,
     ) -> Option<RawFrame> {
@@ -47,7 +47,6 @@ impl CommonMiddlewareTrait for MDataOutTableIndex {
         let cur_zone = option_zone.unwrap();
 
         // Préparation d'un message `IC_DATA_OUT_TABLE_INDEX` pour transmettre les indices à l'AFSEC+
-        // Comme on gère aucun journal, tous les indices sont à 0
         let mut raw_frame = RawFrame::new_message(id_message::IC_DATA_OUT_TABLE_INDEX);
 
         // Zone
@@ -55,11 +54,13 @@ impl CommonMiddlewareTrait for MDataOutTableIndex {
         raw_frame.try_extend_data_item(&data_item).unwrap();
 
         // First index
-        let data_item = DataItem::new(id_message::D_DATA_FIRST_TABLE_INDEX, TValue::U64(0));
+        let index_min = context.records.get_index_min(cur_zone);
+        let data_item = DataItem::new(id_message::D_DATA_FIRST_TABLE_INDEX, TValue::U64(index_min));
         raw_frame.try_extend_data_item(&data_item).unwrap();
 
         // Last index
-        let data_item = DataItem::new(id_message::D_DATA_FIRST_TABLE_INDEX, TValue::U64(0));
+        let index_max = context.records.get_index_max(cur_zone);
+        let data_item = DataItem::new(id_message::D_DATA_FIRST_TABLE_INDEX, TValue::U64(index_max));
         raw_frame.try_extend_data_item(&data_item).unwrap();
 
         // Réponse

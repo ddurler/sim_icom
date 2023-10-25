@@ -5,14 +5,18 @@
     "number": 1106,
     "branch": "master",
     "name": "sim_icom",
-    "date": 20231024,
-    "version": "0.1.0"
+    "date": 20231025,
+    "version": "0.2.0"
   },
   "changes": {
     "imputation": 9501,
-    "short_description": "Création",
+    "short_description": "Version testée unitairement avec résident v5.2",
     "long_description": [
-      "Création de l'outil pour test"
+      "Validation sur manip' en test unitaire avec :",
+      "* Résident v5.2.0",
+      "* Application 352PLUS avec option DATA_PACK + RES_COM sur COM4",
+      "ATTENTION : Il faut rediriger la sortie sur un fichier, les traces à l'écran sont trop lentes et",
+      "des portions de messages sont perdus avec l'AFSEC+ 'junk'"
     ],
     "author": "DD",
     "configuration": null,
