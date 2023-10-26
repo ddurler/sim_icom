@@ -7,6 +7,8 @@
 //!
 //! Le simulateur n'enregistre que les min/max des indices vus pour les différentes zone (voir `context.records`)
 
+use crate::afsec::DEBUG_LEVEL_SOME;
+
 use super::{
     id_message, CommonMiddlewareTrait, Context, DataFrame, DataItem, DatabaseAfsecComm, IdTag,
     IdUser, RawFrame, TValue,
@@ -40,7 +42,9 @@ impl CommonMiddlewareTrait for MDataOutTableIndex {
 
         if option_zone.is_none() {
             // Étrange
-            println!("AFSEC Com: Got AF_DATA_OUT_TABLE_INDEX message without zone ???");
+            if context.debug_level >= DEBUG_LEVEL_SOME {
+                println!("AFSEC Com: Got AF_DATA_OUT_TABLE_INDEX message without zone ???");
+            }
             return Some(RawFrame::new_nack());
         }
 

@@ -20,7 +20,7 @@ use crate::{
     t_data::TValue,
 };
 
-use super::{DataFrame, DatabaseAfsecComm, RawFrame};
+use super::{DataFrame, DatabaseAfsecComm, RawFrame, DEBUG_LEVEL_ALL, DEBUG_LEVEL_SOME};
 
 mod id_message;
 pub use id_message::*;
@@ -111,9 +111,9 @@ pub struct Middlewares {
 
 impl Middlewares {
     /// Constructeur
-    pub fn new() -> Self {
+    pub fn new(debug_level: u8) -> Self {
         Middlewares {
-            context: Context::default(),
+            context: Context::new(debug_level),
             option_cur_middleware: None,
         }
     }
@@ -167,9 +167,9 @@ impl Middlewares {
         id_tag: IdTag,
         t_value: &TValue,
     ) {
-        println!(
-            "AFSEC Comm: notification_change id_user={id_user} id_tag={id_tag}, t_value={t_value}"
-        );
+        if afsec_service.debug_level >= DEBUG_LEVEL_ALL {
+            println!("AFSEC Comm: notification_change id_user={id_user} id_tag={id_tag}, t_value={t_value}");
+        }
         for middleware in Self::all_middlewares() {
             middleware.notification_change(
                 &mut self.context,
@@ -193,7 +193,9 @@ impl Middlewares {
                 self.handle_request_data_frame(afsec_service, &request_data_frame)
             }
             Err(e) => {
-                println!("AFSEC Comm: Got frame with error: {e}");
+                if afsec_service.debug_level >= DEBUG_LEVEL_SOME {
+                    println!("AFSEC Comm: Got frame with error: {e}");
+                }
                 // On ne répond rien
                 RawFrame::new(&[])
             }
@@ -251,11 +253,15 @@ impl Middlewares {
         // Pas de `middleware` pour répondre...
         if request_data_frame.get_tag() == id_message::AF_ALIVE {
             // On peut répondre IC_ALIVE ou ACK
-            println!("AFSEC Comm: AF_ALIVE...");
+            if afsec_service.debug_level >= DEBUG_LEVEL_SOME {
+                println!("AFSEC Comm: AF_ALIVE...");
+            }
             RawFrame::new_ack()
         } else {
             // Répond NACK
-            println!("AFSEC Comm: NACK...");
+            if afsec_service.debug_level >= DEBUG_LEVEL_SOME {
+                println!("AFSEC Comm: NACK...");
+            }
             RawFrame::new_nack()
         }
     }
@@ -270,7 +276,6 @@ mod tests {
     use crate::afsec::check_notification_changes;
     use crate::afsec::tlv_frame::DataItem;
     use crate::afsec::tlv_frame::FrameState;
-    use crate::afsec::DEBUG_LEVEL_ALL;
     use crate::database::Tag;
     use crate::database::ID_ANONYMOUS_USER;
     use crate::t_data::TFormat;
@@ -509,7 +514,7 @@ mod tests {
     #[test]
     fn test_conversation() {
         let mut afsec_service = database_setup();
-        let mut middlewares = Middlewares::new();
+        let mut middlewares = Middlewares::new(afsec_service.debug_level);
 
         // Conversation AF_INIT/IC_INIT (pour débuter)
         let request = request_raw_frame_init();

@@ -1,6 +1,6 @@
 //! Helpers pour les `middlewares`
 
-use super::{Context, DatabaseAfsecComm, IdTag, RecordData, TValue};
+use super::{Context, DatabaseAfsecComm, IdTag, RecordData, TValue, DEBUG_LEVEL_ALL};
 
 /// Helper pour découper un `u32` au format 10000 * version + 100 * revision + edition
 pub fn u32_to_version_revision_edition(version_revision_edition: u32) -> (u16, u16, u16) {
@@ -41,7 +41,9 @@ pub fn tag_num_indices_to_vec_u8(
 
 /// Helper pour mettre à jour la `Database`
 pub fn update_database(afsec_service: &mut DatabaseAfsecComm, id_tag: IdTag, t_value: TValue) {
-    println!("AFSEC Comm: Database update {id_tag} = {t_value}");
+    if afsec_service.debug_level >= DEBUG_LEVEL_ALL {
+        println!("AFSEC Comm: Database update {id_tag} = {t_value}");
+    }
 
     // Verrouiller la database partagée
     let mut db: std::sync::MutexGuard<'_, crate::database::Database> =
@@ -76,7 +78,9 @@ pub fn update_database(afsec_service: &mut DatabaseAfsecComm, id_tag: IdTag, t_v
 /// Helper pour l'ajout d'une donnée d'un enregistrement d'une table
 pub fn add_record(context: &mut Context, record: RecordData) {
     if RecordData::is_id_tag_end_of_record(record.id_tag) {
-        println!("AFSEC Comm: Got END_OF_RECORD");
+        if context.debug_level >= DEBUG_LEVEL_ALL {
+            println!("AFSEC Comm: Got END_OF_RECORD");
+        }
         RecordData::collect_record_datas(context);
     } else {
         context.record_datas.push(record);

@@ -10,6 +10,9 @@ use super::{IdTag, RecordData, TValue};
 // => C'est la structure générique `Context` qui doit être utilisée comme `context` pour ce besoin
 #[derive(Debug, Default)]
 pub struct Context {
+    /// Niveau pour l'affichage des traces
+    pub debug_level: u8,
+
     /// Nombre de INIT depuis le début
     pub nb_init: usize,
 
@@ -51,6 +54,16 @@ pub struct Context {
 
     /// Contexte pour les transactions 'pack-out'
     pub pack_out: PackOut,
+}
+
+impl Context {
+    /// Constructeur avec le niveau de debug
+    pub fn new(debug_level: u8) -> Self {
+        Context {
+            debug_level,
+            ..Default::default()
+        }
+    }
 }
 
 /// Sous-structure du contexte pour les journaux (`DATA_OUT_TABLE_INDEX`)

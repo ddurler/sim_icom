@@ -1,6 +1,6 @@
 //! Gestion des tables d'enregistrements
 
-use super::{Context, IdTag, TValue};
+use super::{Context, IdTag, TValue, DEBUG_LEVEL_ALL};
 
 /// Tag pour un `END_OF_RECORD` d'un `DATA_OUT` lors d'un enregistrement d'un journal
 /// Voir SR DEV 004
@@ -48,12 +48,16 @@ impl RecordData {
     /// Toutes les données sont dans le contexte
     pub fn collect_record_datas(context: &mut Context) {
         if !context.record_datas.is_empty() {
-            println!("AFSEC Comm: Constitution d'un RECORD avec:");
+            if context.debug_level >= DEBUG_LEVEL_ALL {
+                println!("AFSEC Comm: Constitution d'un RECORD avec:");
+            }
             for record in &context.record_datas {
-                println!(
-                    "    table_index={}, id_tag={}, t_value={}",
-                    record.table_index, record.id_tag, record.t_value
-                );
+                if context.debug_level >= DEBUG_LEVEL_ALL {
+                    println!(
+                        "    table_index={}, id_tag={}, t_value={}",
+                        record.table_index, record.id_tag, record.t_value
+                    );
+                }
                 // Informe le contexte
                 context
                     .records

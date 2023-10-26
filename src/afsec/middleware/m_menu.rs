@@ -5,7 +5,7 @@
 
 use super::{
     id_message, CommonMiddlewareTrait, Context, DataFrame, DatabaseAfsecComm, IdTag, IdUser,
-    RawFrame, TValue,
+    RawFrame, TValue, DEBUG_LEVEL_ALL,
 };
 
 #[derive(Default)]
@@ -16,7 +16,7 @@ impl CommonMiddlewareTrait for MMenu {
 
     fn get_conversation(
         &self,
-        _context: &mut Context,
+        context: &mut Context,
         _afsec_service: &mut DatabaseAfsecComm,
         request_data_frame: &DataFrame,
     ) -> Option<RawFrame> {
@@ -26,7 +26,9 @@ impl CommonMiddlewareTrait for MMenu {
         }
 
         // Réponse
-        println!("AFSEC Comm: AF_MENU NACK");
+        if context.debug_level >= DEBUG_LEVEL_ALL {
+            println!("AFSEC Comm: AF_MENU NACK");
+        }
         Some(RawFrame::new_nack())
     }
 

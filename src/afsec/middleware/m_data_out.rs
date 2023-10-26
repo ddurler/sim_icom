@@ -4,6 +4,8 @@
 //! Il peut s'agir de données pour renseigner la `Database` (`ZONE` + `IdTag` + `TValue`)
 //! ou de donnée pour un enregistrement dans un journal (`TABLE_INDEX` en sus)
 
+use crate::afsec::DEBUG_LEVEL_SOME;
+
 use super::{
     id_message, records::RecordData, utils, CommonMiddlewareTrait, Context, DataFrame,
     DatabaseAfsecComm, IdTag, IdUser, RawFrame, TValue,
@@ -32,7 +34,9 @@ impl CommonMiddlewareTrait for MDataOut {
         }
         // Décompte des AF_DATA_OUT traités
         context.nb_data_out += 1;
-        println!("AFSEC Comm: AF_DATA_OUT #{}...", context.nb_data_out);
+        if context.debug_level >= DEBUG_LEVEL_SOME {
+            println!("AFSEC Comm: AF_DATA_OUT #{}...", context.nb_data_out);
+        }
 
         // Init avant traitement
         context.option_vec_u8_tag = None;
@@ -122,7 +126,7 @@ mod tests {
         let db_afsec = Arc::clone(&shared_db);
 
         // Création contexte pour les middlewares
-        let mut context = Context::default();
+        let mut context = Context::new(DEBUG_LEVEL_ALL);
         let mut afsec_service =
             DatabaseAfsecComm::new(db_afsec, "fake".to_string(), DEBUG_LEVEL_ALL);
 

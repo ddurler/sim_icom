@@ -5,18 +5,19 @@
     "number": 1106,
     "branch": "master",
     "name": "sim_icom",
-    "date": 20231025,
-    "version": "0.2.0"
+    "date": 20231026,
+    "version": "0.3.0"
   },
   "changes": {
     "imputation": 9501,
-    "short_description": "Version testée unitairement avec résident v5.2",
+    "short_description": "Ajout command args",
     "long_description": [
-      "Validation sur manip' en test unitaire avec :",
-      "* Résident v5.2.0",
-      "* Application 352PLUS avec option DATA_PACK + RES_COM sur COM4",
-      "ATTENTION : Il faut rediriger la sortie sur un fichier, les traces à l'écran sont trop lentes et",
-      "des portions de messages sont perdus avec l'AFSEC+ 'junk'"
+      "Ajout crate 'clap' pour des options selon les arguments de la commande :",
+      "* -f ou --filename pour le fichier de la database",
+      "* -p ou --port pour le port du MODBUS/TCP",
+      "* -w ou --watcher pour les temps de cycles du watcher des modifs dans la database",
+      "* -d ou --debug pour le niveau des traces de debug à l'affichage'",
+      "* -h ou --help pour expliquer tout ça"
     ],
     "author": "DD",
     "configuration": null,

@@ -78,7 +78,7 @@ pub async fn database_afsec_process(afsec_service: &mut DatabaseAfsecComm) {
     }
 
     // Création du gestionnaire des `middlewares` pour les conversations avec l'AFSEC+
-    let mut middlewares = Middlewares::new();
+    let mut middlewares = Middlewares::new(afsec_service.debug_level);
 
     // Timer pour surveiller les notifications
     let mut date_last_notification_changes = Instant::now();
@@ -140,21 +140,29 @@ fn read_and_write(
 
                 // Reçu un message inexploitable... On zappe
                 FrameState::Junk => {
-                    println!("AFSEC Comm: Got junk frame '{request_raw_frame}'");
+                    if afsec_service.debug_level >= DEBUG_LEVEL_ALL {
+                        println!("AFSEC Comm: Got junk frame '{request_raw_frame}'");
+                    }
                     break 1;
                 }
 
                 // Trame correcte reçue. On traite pour répondre...
                 FrameState::Ok => {
-                    println!("AFSEC Comm: -> REQ {request_raw_frame}");
+                    if afsec_service.debug_level >= DEBUG_LEVEL_ALL {
+                        println!("AFSEC Comm: -> REQ {request_raw_frame}");
+                    }
                     let response_raw_frame =
                         middlewares.handle_request_raw_frame(afsec_service, request_raw_frame);
                     match port.try_write(&response_raw_frame.encode()) {
                         Ok(_n) => {
-                            println!("AFSEC Comm: <- REP {response_raw_frame}");
+                            if afsec_service.debug_level >= DEBUG_LEVEL_ALL {
+                                println!("AFSEC Comm: <- REP {response_raw_frame}");
+                            }
                         }
                         Err(e) => {
-                            println!("AFSEC Comm: Got error while writing: {e}");
+                            if afsec_service.debug_level >= DEBUG_LEVEL_SOME {
+                                println!("AFSEC Comm: Got error while writing: {e}");
+                            }
                         }
                     }
                     break 1;

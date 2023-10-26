@@ -583,7 +583,7 @@ dependencies = [
 
 [[package]]
 name = "sim_icom"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "assert_float_eq",

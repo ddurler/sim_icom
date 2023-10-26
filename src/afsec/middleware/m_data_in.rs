@@ -6,6 +6,8 @@
 //!
 //! Les données transmises sont les `notification_changes` reçues des autres utilisateurs.
 
+use crate::afsec::DEBUG_LEVEL_SOME;
+
 use super::{
     id_message, utils, CommonMiddlewareTrait, Context, DataFrame, DataItem, DatabaseAfsecComm,
     IdTag, IdUser, RawFrame, TValue, TAG_DATA_PACK,
@@ -35,7 +37,9 @@ impl CommonMiddlewareTrait for MDataIn {
 
         // Décompte des AF_DATA_IN traités
         context.nb_data_in += 1;
-        println!("AFSEC Comm: AF_DATA_IN #{}...", context.nb_data_in);
+        if context.debug_level >= DEBUG_LEVEL_SOME {
+            println!("AFSEC Comm: AF_DATA_IN #{}...", context.nb_data_in);
+        }
 
         // Préparation d'un message `IC_DATA_IN` pour transmettre des datas à l'AFSEC+
         let mut raw_frame = RawFrame::new_message(id_message::IC_DATA_IN);
@@ -144,7 +148,7 @@ mod tests {
         let db_afsec = Arc::clone(&shared_db);
 
         // Création contexte pour les middlewares
-        let mut context = Context::default();
+        let mut context = Context::new(DEBUG_LEVEL_ALL);
         let mut afsec_service =
             DatabaseAfsecComm::new(db_afsec, "fake".to_string(), DEBUG_LEVEL_ALL);
 

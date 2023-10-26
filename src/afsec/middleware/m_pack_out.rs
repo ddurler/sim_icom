@@ -25,7 +25,7 @@ use std::vec;
 
 use super::{
     id_message, CommonMiddlewareTrait, Context, DataFrame, DatabaseAfsecComm, IdTag, IdUser,
-    RawFrame, TValue, TAG_DATA_PACK,
+    RawFrame, TValue, DEBUG_LEVEL_ALL, DEBUG_LEVEL_SOME, TAG_DATA_PACK,
 };
 
 #[derive(Default)]
@@ -46,7 +46,9 @@ impl CommonMiddlewareTrait for MPackOut {
 
         // Décompte des AF_PACK_OUT traités
         context.nb_pack_out += 1;
-        println!("AFSEC Comm: AF_PACK_OUT #{}...", context.nb_pack_out);
+        if context.debug_level >= DEBUG_LEVEL_SOME {
+            println!("AFSEC Comm: AF_PACK_OUT #{}...", context.nb_pack_out);
+        }
 
         // Vérifie si transaction en cours ou s'il faut démarrer une nouvelle transaction
         if !context.pack_out.is_transaction {
@@ -60,7 +62,7 @@ impl CommonMiddlewareTrait for MPackOut {
         // Exploitation des packets reçus
         for data_item in request_data_frame.get_data_items() {
             if data_item.tag == id_message::D_PACK_PAYLOAD {
-                if last_packet_received {
+                if last_packet_received && context.debug_level >= DEBUG_LEVEL_SOME {
                     println!("AFSEC Comm: AF_PACK_OUT got packet after receiving last packet ???");
                 }
                 let vec_u8 = data_item.t_value.to_vec_u8();
@@ -70,7 +72,7 @@ impl CommonMiddlewareTrait for MPackOut {
                     let num_packet = vec_u8[0] / 16;
                     // Vérifie consistance du nombre total de paquets
                     if let Some(nb) = context.pack_out.option_nb_total_packets {
-                        if nb != total_nb_packets {
+                        if nb != total_nb_packets && context.debug_level >= DEBUG_LEVEL_SOME {
                             println!("AFSEC Comm: AF_PACK_OUT change in total #packets {nb} to {total_nb_packets} ???");
                         }
                     } else {
@@ -78,10 +80,12 @@ impl CommonMiddlewareTrait for MPackOut {
                     }
                     // Vérifie consistance numérotation des paquets
                     if let Some(last_num_packet) = context.pack_out.option_last_num_packet {
-                        if num_packet != last_num_packet + 1 {
+                        if num_packet != last_num_packet + 1
+                            && context.debug_level >= DEBUG_LEVEL_SOME
+                        {
                             println!("AFSEC Comm: AF_PACK_OUT missing packet between #{last_num_packet} and #{num_packet} ???",);
                         }
-                    } else if num_packet != 1 {
+                    } else if num_packet != 1 && context.debug_level >= DEBUG_LEVEL_SOME {
                         println!("AFSEC Comm: AF_PACK_OUT got first packet with number #{num_packet} ???",);
                     }
                     context.pack_out.option_last_num_packet = Some(num_packet);
@@ -97,13 +101,13 @@ impl CommonMiddlewareTrait for MPackOut {
 
                     // Dernier paquet ?
                     last_packet_received = num_packet == total_nb_packets;
-                } else {
+                } else if context.debug_level >= DEBUG_LEVEL_SOME {
                     println!(
                         "AFSEC Comm: AF_PACK_OUT got too short data (len={}) ???",
                         vec_u8.len()
                     );
                 }
-            } else {
+            } else if context.debug_level >= DEBUG_LEVEL_SOME {
                 println!(
                     "AFSEC Comm: AF_PACK_OUT got unexpected id_tag {} ???",
                     data_item.tag
@@ -142,7 +146,9 @@ impl MPackOut {
 
         // Démarre la transaction
         context.pack_out.is_transaction = true;
-        println!("AFSEC Comm: AF_PACK_OUT starts new transaction");
+        if context.debug_level >= DEBUG_LEVEL_SOME {
+            println!("AFSEC Comm: AF_PACK_OUT starts new transaction");
+        }
 
         // Préparation des données pour la transaction
         context.pack_out.option_nb_total_packets = None;
@@ -179,11 +185,13 @@ impl MPackOut {
                     let mut db: std::sync::MutexGuard<'_, crate::database::Database> =
                         afsec_service.thread_db.lock().unwrap();
 
-                    println!("AFSEC Comm: AF_PACK_OUT update @{word_address:04X} = {vec_u8:?}");
+                    if context.debug_level >= DEBUG_LEVEL_ALL {
+                        println!("AFSEC Comm: AF_PACK_OUT update @{word_address:04X} = {vec_u8:?}");
+                    }
                     db.set_vec_u8_to_word_address(afsec_service.id_user, word_address, vec_u8);
                 };
             }
-        } else {
+        } else if context.debug_level >= DEBUG_LEVEL_SOME {
             println!("AFSEC Comm: AF_PACK_OUT with no word address in database for {id_tag} ???");
         }
 
@@ -194,7 +202,9 @@ impl MPackOut {
 
         // Hors transaction maintenant
         context.pack_out.is_transaction = false;
-        println!("AFSEC Comm: AF_PACK_OUT ends transaction");
+        if context.debug_level >= DEBUG_LEVEL_ALL {
+            println!("AFSEC Comm: AF_PACK_OUT ends transaction");
+        }
     }
 }
 
@@ -205,7 +215,6 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use crate::afsec::tlv_frame::DataItem;
-    use crate::afsec::DEBUG_LEVEL_ALL;
     use crate::database::ID_ANONYMOUS_USER;
     use crate::t_data::TFormat;
     use crate::{database::Tag, Database};
@@ -239,7 +248,7 @@ mod tests {
         let db_afsec = Arc::clone(&shared_db);
 
         // Création contexte pour les middlewares
-        let mut context = Context::default();
+        let mut context = Context::new(DEBUG_LEVEL_ALL);
         let mut afsec_service =
             DatabaseAfsecComm::new(db_afsec, "fake".to_string(), DEBUG_LEVEL_ALL);
 

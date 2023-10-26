@@ -1,18 +1,42 @@
 # SIM_ICOM
 
-Simulateur application ICOM
-
 Cet outil simule le fonctionnement de la carte ICOM pour l'AFSEC+.
 
-Usage:
-    sim_icom com        Où com est le port série en communication avec l'AFSEC+
-                        (Le port série 'fake' inhibe cette communication)
-
-Le répertoire courant doit contenir un fichier 'database.csv' qui contient les informations
-de la database de l'ICOM (fichier dont le contenu est identique au fichier database*.csv dans
-la µSD de l'ICOM).
+Le répertoire courant doit contenir un fichier 'database.csv' qui contient les informations de la database de l'ICOM (fichier dont le contenu est identique au fichier database*.csv dans la `µSD` de l'ICOM).
 
 L'outil est également un serveur MODBUS/TCP pour interagir avec le contenu de la database.
+
+```
+Usage: sim_icom.exe [OPTIONS] <PORT_NAME>
+
+Arguments:
+  <PORT_NAME>
+          Nom du port série pour communiquer avec l'AFSEC+ ('fake' pour simuler une communication inexistante)
+
+Options:
+  -f, --filename <FILENAME>
+          Fichier descriptif de la database au format .csv
+
+          [default: database.csv]
+
+  -p, --port <PORT>
+          Numéro du port MODBUS/TCP
+
+          [default: 502]
+
+  -w, --watcher <WATCHER>
+          Timer (en millisecondes) pour le watcher (0 pour inhiber le watcher)
+
+          [default: 1000]
+
+  -d, --debug <DEBUG>
+          Debug show level (0: None, 1: Some, 2 ou +: All)
+
+          [default: 1]
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
 
 ## Fonctionnalités
 

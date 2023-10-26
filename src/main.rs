@@ -35,7 +35,17 @@ async fn main() -> anyhow::Result<()> {
     let id_user_tcp_server = db.get_id_user("Server MODBUS/TCP", false);
 
     // Niveau de debug pour les traces
-    let debug_level = command_args.debug;
+    let debug_level = match command_args.debug {
+        0 => 0,
+        1 => {
+            println!("Active DEBUG level SOME...");
+            1
+        }
+        _ => {
+            println!("Active DEBUG level ALL...");
+            2
+        }
+    };
 
     // Créer la database partagée mutable
     let shared_db = Arc::new(Mutex::new(db));

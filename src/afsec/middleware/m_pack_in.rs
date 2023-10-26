@@ -30,7 +30,7 @@ use std::vec;
 
 use super::{
     id_message, CommonMiddlewareTrait, Context, DataFrame, DataItem, DatabaseAfsecComm, IdTag,
-    IdUser, RawFrame, TValue, TAG_DATA_PACK,
+    IdUser, RawFrame, TValue, DEBUG_LEVEL_ALL, DEBUG_LEVEL_SOME, TAG_DATA_PACK,
 };
 
 #[derive(Default)]
@@ -62,7 +62,9 @@ impl CommonMiddlewareTrait for MPackIn {
 
         // Décompte des AF_PACK_IN traités
         context.nb_pack_in += 1;
-        println!("AFSEC Comm: AF_PACK_IN #{}...", context.nb_pack_in);
+        if context.debug_level >= DEBUG_LEVEL_SOME {
+            println!("AFSEC Comm: AF_PACK_IN #{}...", context.nb_pack_in);
+        }
 
         // Préparation d'un message `IC_PACK_IN` pour transmettre des datas à l'AFSEC+
         let mut raw_frame = RawFrame::new_message(id_message::IC_PACK_IN);
@@ -128,7 +130,9 @@ impl CommonMiddlewareTrait for MPackIn {
         }
 
         // Trace
-        println!("AFSEC Comm: AF_PACK_IN replies with packets #{vec_blocs:?}/{total_nb_blocs}");
+        if context.debug_level >= DEBUG_LEVEL_ALL {
+            println!("AFSEC Comm: AF_PACK_IN replies with packets #{vec_blocs:?}/{total_nb_blocs}");
+        }
 
         if context.pack_in.private_datas.is_empty() {
             // Tous les blocs de la transaction sont dans un message
@@ -171,10 +175,12 @@ impl MPackIn {
 
         // Démarre la transaction
         context.pack_in.is_transaction = true;
-        println!(
-            "AFSEC Comm: AF_PACK_IN starts new transaction with #{} packets",
-            context.pack_in.set_blocs.len()
-        );
+        if context.debug_level >= DEBUG_LEVEL_SOME {
+            println!(
+                "AFSEC Comm: AF_PACK_IN starts new transaction with #{} packets",
+                context.pack_in.set_blocs.len()
+            );
+        }
 
         // Mise à jour de la copie privée des `blocs` à transmettre à l'AFSEC+
         context.pack_in.private_datas = vec![];
@@ -206,7 +212,9 @@ impl MPackIn {
 
         // Hors transaction maintenant
         context.pack_in.is_transaction = false;
-        println!("AFSEC Comm: AF_PACK_IN ends transaction");
+        if context.debug_level >= DEBUG_LEVEL_ALL {
+            println!("AFSEC Comm: AF_PACK_IN ends transaction");
+        }
     }
 }
 
@@ -216,7 +224,6 @@ mod tests {
 
     use std::sync::{Arc, Mutex};
 
-    use crate::afsec::DEBUG_LEVEL_ALL;
     use crate::database::ID_ANONYMOUS_USER;
     use crate::t_data::TFormat;
     use crate::{database::Tag, Database};
@@ -253,7 +260,7 @@ mod tests {
         let db_afsec = Arc::clone(&shared_db);
 
         // Création contexte pour les middlewares
-        let mut context = Context::default();
+        let mut context = Context::new(DEBUG_LEVEL_ALL);
         let mut afsec_service =
             DatabaseAfsecComm::new(db_afsec, "fake".to_string(), DEBUG_LEVEL_ALL);
 
